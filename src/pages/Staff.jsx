@@ -158,7 +158,7 @@ const Staff = () => {
           email: formData.email,
           phone: formData.phone || formData.mobile,
           mobile: formData.phone || formData.mobile, // Keep mobile for backward compatibility
-          role: formData.role.toLowerCase(), // Backend expects lowercase: 'staff', 'accounts', 'franchise_manager', 'admin'
+          role: formData.role.toLowerCase(), // Backend expects lowercase: 'staff', 'accounts', 'admin'
           status: formData.status,
           department: formData.department?.trim() || undefined,
           salary: formData.salary ? parseFloat(formData.salary) : 0,

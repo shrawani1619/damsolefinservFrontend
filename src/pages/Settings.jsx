@@ -334,7 +334,7 @@ const Settings = () => {
             </div>
           )}
 
-          {(user.role === 'agent' || user.role === 'franchise_owner') && (
+          {(user.role === 'agent' || user.role === 'franchise') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Franchise</label>
               <p className="text-sm text-gray-900 py-2">

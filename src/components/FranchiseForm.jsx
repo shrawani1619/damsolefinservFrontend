@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
+import { authService } from '../services/auth.service'
+import { api } from '../services/api'
 
 const FranchiseForm = ({ franchise, onSave, onClose }) => {
   const isCreate = !franchise
+  const isAdmin = authService.getUser()?.role === 'super_admin'
+  const [regionalManagers, setRegionalManagers] = useState([])
   const [formData, setFormData] = useState({
     name: '',
     ownerName: '',
@@ -9,6 +13,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
     mobile: '',
     password: '',
     status: 'active',
+    regionalManager: '',
     address: {
       street: '',
       city: '',
@@ -20,6 +25,14 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
+    if (isAdmin) {
+      api.users.getAll({ role: 'regional_manager', limit: 200 }).then((res) => {
+        setRegionalManagers(res.data || [])
+      }).catch(() => setRegionalManagers([]))
+    }
+  }, [isAdmin])
+
+  useEffect(() => {
     if (franchise) {
       setFormData({
         name: franchise.name || '',
@@ -28,6 +41,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
         mobile: franchise.mobile || '',
         password: '',
         status: franchise.status || 'active',
+        regionalManager: franchise.regionalManager?._id || franchise.regionalManager || '',
         address: {
           street: franchise.address?.street || '',
           city: franchise.address?.city || '',
@@ -58,6 +72,11 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
       const payload = { ...formData }
       if (!isCreate) {
         delete payload.password
+      }
+      if (!isAdmin) {
+        delete payload.regionalManager
+      } else {
+        payload.regionalManager = formData.regionalManager || null
       }
       onSave(payload)
     }
@@ -244,6 +263,27 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           <option value="inactive">Inactive</option>
         </select>
       </div>
+
+      {isAdmin && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Regional Manager
+          </label>
+          <select
+            name="regionalManager"
+            value={formData.regionalManager}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="">None</option>
+            {regionalManagers.map((rm) => (
+              <option key={rm._id} value={rm._id}>
+                {rm.name} {rm.email ? `(${rm.email})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <button

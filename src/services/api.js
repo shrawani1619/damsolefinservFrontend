@@ -348,6 +348,19 @@ export const api = {
     getPerformance: (id) => apiRequest(`/franchises/${id}/performance`),
   },
 
+  // Users endpoints
+  users: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return apiRequest(`/users${queryString ? `?${queryString}` : ''}`);
+    },
+    getById: (id) => apiRequest(`/users/${id}`),
+    create: (data) => apiRequest('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  },
+
   // Banks endpoints
   banks: {
     getAll: (params = {}) => {
@@ -394,7 +407,7 @@ export const api = {
     },
     getFranchiseOwnerDashboard: (params = {}) => {
       const queryString = new URLSearchParams(params).toString();
-      return apiRequest(`/dashboard/franchise-owner${queryString ? `?${queryString}` : ''}`);
+      return apiRequest(`/dashboard/franchise${queryString ? `?${queryString}` : ''}`);
     },
   },
 

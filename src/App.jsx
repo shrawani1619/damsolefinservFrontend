@@ -16,6 +16,7 @@ import Invoices from './pages/Invoices'
 import Payouts from './pages/Payouts'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
+import RegionalManagers from './pages/RegionalManagers'
 
 function App() {
   const [notifications, setNotifications] = useState([])
@@ -56,6 +57,7 @@ function App() {
           <Route path="staff" element={<Staff />} />
           <Route path="banks" element={<Banks />} />
           <Route path="franchises" element={<Franchises />} />
+          <Route path="regional-managers" element={<RegionalManagers />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="payouts" element={<Payouts />} />
           <Route path="settings" element={<Settings />} />

@@ -89,8 +89,8 @@ export default function DashboardFilters({ filters = {}, onApply, onReset, role 
   const [banks, setBanks] = useState([])
   const [loadingOptions, setLoadingOptions] = useState(false)
 
-  const showFranchise = role === 'super_admin' || role === 'relationship_manager' || role === 'franchise_manager' || role === 'accounts_manager'
-  const showAgent = showFranchise || role === 'franchise_owner'
+  const showFranchise = role === 'super_admin' || role === 'regional_manager' || role === 'relationship_manager' || role === 'accounts_manager'
+  const showAgent = showFranchise || role === 'franchise'
   const showBank = true
 
   useEffect(() => {

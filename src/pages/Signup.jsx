@@ -68,7 +68,7 @@ const Signup = () => {
     }
 
     // Validate franchise selection for roles that require it
-    const rolesRequiringFranchise = ['agent', 'franchise_owner']
+    const rolesRequiringFranchise = ['agent', 'franchise']
     if (rolesRequiringFranchise.includes(formData.role) && !formData.franchiseId) {
       setError('Please select a franchise')
       return
@@ -210,20 +210,19 @@ const Signup = () => {
                 >
                   <option value="">Select a role</option>
                   <option value="agent">Agent</option>
-                  <option value="franchise_owner">Franchise Owner</option>
-                  <option value="franchise_manager">Franchise Manager</option>
+                  <option value="franchise">Franchise Owner</option>
                   <option value="relationship_manager">Relationship Manager</option>
                   <option value="accounts_manager">Accounts Manager</option>
                 </select>
               </div>
               <div>
                 <label htmlFor="franchiseId" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Franchise {(formData.role === 'agent' || formData.role === 'franchise_owner') && <span className="text-red-500">*</span>}
+                  Franchise {(formData.role === 'agent' || formData.role === 'franchise') && <span className="text-red-500">*</span>}
                 </label>
                 <select
                   id="franchiseId"
                   name="franchiseId"
-                  required={formData.role === 'agent' || formData.role === 'franchise_owner'}
+                  required={formData.role === 'agent' || formData.role === 'franchise'}
                   value={formData.franchiseId}
                   onChange={handleChange}
                   className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-gray-900 bg-white"

@@ -22,12 +22,11 @@ const Login = () => {
   }
 
   const getDashboardRoute = (role) => {
-    // Map roles to their dashboard routes
     const roleRoutes = {
       'agent': '/',
       'relationship_manager': '/',
-      'franchise_manager': '/',
-      'franchise_owner': '/',
+      'regional_manager': '/',
+      'franchise': '/',
       'accounts_manager': '/',
       'super_admin': '/',
     }
@@ -41,20 +40,20 @@ const Login = () => {
 
     try {
       const response = await api.auth.login(formData)
-      
+
       // Backend returns: { success: true, data: user, token }
       if (response.success && response.token) {
         // Store token
         authService.setToken(response.token)
-        
+
         // Store user data
         if (response.data) {
           authService.setUser(response.data)
-          
+
           // Get user role and redirect to appropriate dashboard
           const userRole = response.data.role
           const dashboardRoute = getDashboardRoute(userRole)
-          
+
           // Redirect to role-specific dashboard
           navigate(dashboardRoute)
           // Small delay to ensure token is stored

@@ -32,16 +32,16 @@ const Header = () => {
 
   const getDashboardTitle = () => {
     if (!user.role) return 'Dashboard'
-    
+
     const roleMap = {
       'agent': 'Agent Dashboard',
-      'franchise_owner': 'Franchisee Dashboard',
-      'franchise_manager': 'Franchise Manager Dashboard',
+      'franchise': 'Franchisee Dashboard',
+      'regional_manager': 'Regional Manager Dashboard',
       'relationship_manager': 'Relationship Manager Dashboard',
       'accounts_manager': 'Accounts Manager Dashboard',
       'super_admin': 'Admin Dashboard',
     }
-    
+
     return roleMap[user.role] || 'Dashboard'
   }
 
@@ -100,16 +100,16 @@ const Header = () => {
       } catch (error) {
         // Silently fail for connection errors or auth errors
         const isConnectionError = error.message && (
-          error.message.includes('Failed to fetch') || 
+          error.message.includes('Failed to fetch') ||
           error.message.includes('NetworkError') ||
           error.message.includes('Connection') ||
           error.name === 'TypeError'
         )
-        
+
         if (error.message && error.message.includes('401')) {
           return
         }
-        
+
         // Don't log connection errors - they're expected when backend is down
         if (!isConnectionError) {
           console.error('Error fetching notification count:', error)

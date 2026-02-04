@@ -12,7 +12,7 @@ import { exportToExcel } from '../utils/exportExcel'
 const Leads = () => {
   const userRole = authService.getUser()?.role || 'super_admin'
   const isAgent = userRole === 'agent'
-  const canViewHistory = ['super_admin', 'relationship_manager', 'franchise_owner', 'agent'].includes(userRole)
+  const canViewHistory = ['super_admin', 'relationship_manager', 'franchise', 'agent'].includes(userRole)
   const canEdit = !isAgent
   const canCreate = true // Agents can create leads
 

@@ -14,11 +14,11 @@ const StaffForm = ({ staff, onSave, onClose }) => {
 
   const [errors, setErrors] = useState({})
 
-  // Backend expects: 'staff', 'accounts', 'franchise_manager', 'admin'
+  // Backend expects: 'staff', 'accounts', 'admin'
   const roles = [
     { value: 'staff', label: 'Staff' },
     { value: 'accounts', label: 'Accounts' },
-    { value: 'franchise_manager', label: 'Franchise Manager' },
+
     { value: 'admin', label: 'Admin' },
   ]
   const departments = ['Operations', 'Finance', 'Customer Service', 'HR', 'IT', 'Sales', 'Marketing']

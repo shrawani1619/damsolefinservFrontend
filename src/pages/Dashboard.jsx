@@ -53,16 +53,16 @@ const Dashboard = () => {
           case 'agent':
             dashboardData = await api.dashboard.getAgentDashboard(params)
             break
-          case 'franchise_owner':
+          case 'franchise':
             dashboardData = await api.dashboard.getFranchiseOwnerDashboard(params)
             break
           case 'relationship_manager':
-          case 'franchise_manager':
             dashboardData = await api.dashboard.getStaffDashboard(params)
             break
           case 'accounts_manager':
             dashboardData = await api.dashboard.getAccountsDashboard(params)
             break
+          case 'regional_manager':
           case 'super_admin':
           default:
             dashboardData = await api.dashboard.getAdminDashboard(params)
@@ -114,8 +114,8 @@ const Dashboard = () => {
         setRelatedLists((prev) => ({ ...prev, recentLeads: [] }))
       }
 
-      // Set related lists (for admin and franchise owner dashboards)
-      if (userRole === 'super_admin' || userRole === 'relationship_manager' || userRole === 'franchise_owner') {
+      // Set related lists (for admin, regional manager, and franchise owner dashboards)
+      if (userRole === 'super_admin' || userRole === 'regional_manager' || userRole === 'relationship_manager' || userRole === 'franchise') {
         setRelatedLists({
           recentLeads: Array.isArray(data.recentLeads) ? data.recentLeads : [],
           recentAgents: Array.isArray(data.recentAgents) ? data.recentAgents : [],
@@ -125,7 +125,7 @@ const Dashboard = () => {
           relationshipManagers: Array.isArray(data.relationshipManagers) ? data.relationshipManagers : [],
         })
       }
-      if (userRole === 'super_admin' || userRole === 'franchise_owner') {
+      if (userRole === 'super_admin' || userRole === 'regional_manager' || userRole === 'franchise') {
         setLoanDistribution(Array.isArray(data.loanDistribution) ? data.loanDistribution : [])
         setLeadConversionFunnel(Array.isArray(data.leadConversionFunnel) ? data.leadConversionFunnel : [])
         setSelectedLoanSegmentIndex(null)
@@ -401,7 +401,7 @@ const Dashboard = () => {
           </div>
 
           {/* Loan Distribution & Lead Conversion Funnel - Admin & Franchise Owner */}
-          {(authService.getUser()?.role === 'super_admin' || authService.getUser()?.role === 'franchise_owner') && (
+          {(authService.getUser()?.role === 'super_admin' || authService.getUser()?.role === 'regional_manager' || authService.getUser()?.role === 'franchise') && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h2 className="text-lg font-bold text-gray-900 mb-4">Loan Distribution</h2>
@@ -492,7 +492,7 @@ const Dashboard = () => {
           )}
 
           {/* Related Lists Section - Admin Only */}
-          {(authService.getUser()?.role === 'super_admin' || authService.getUser()?.role === 'relationship_manager') && (
+          {(authService.getUser()?.role === 'super_admin' || authService.getUser()?.role === 'regional_manager' || authService.getUser()?.role === 'relationship_manager') && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Leads */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
