@@ -9,7 +9,6 @@ const Signup = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: '',
     phone: '',
     role: '',
     franchiseId: '',
@@ -29,11 +28,11 @@ const Signup = () => {
             'Content-Type': 'application/json',
           },
         })
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch franchises')
         }
-        
+
         const result = await response.json()
         const data = result.data || result || []
         setFranchises(Array.isArray(data) ? data : [])
@@ -42,7 +41,7 @@ const Signup = () => {
         // Don't set error here, just log it - user can still try to signup
       }
     }
-    
+
     fetchFranchises()
   }, [])
 
@@ -57,11 +56,6 @@ const Signup = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
 
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters')
@@ -83,8 +77,8 @@ const Signup = () => {
     setLoading(true)
 
     try {
-      const { confirmPassword, franchiseId, ...signupData } = formData
-      
+      const { franchiseId, ...signupData } = formData
+
       // Map form fields to backend expected format
       const registerData = {
         name: signupData.name,
@@ -98,14 +92,14 @@ const Signup = () => {
       if (franchiseId) {
         registerData.franchise = franchiseId
       }
-      
+
       const response = await api.auth.register(registerData)
-      
+
       // Backend returns: { success: true, data: user, token }
       if (response.success && response.token) {
         // Store token
         authService.setToken(response.token)
-        
+
         // Store user data
         if (response.data) {
           authService.setUser(response.data)
@@ -255,22 +249,6 @@ const Signup = () => {
                   className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-gray-900 placeholder-gray-400"
                   placeholder="Password (min 6 characters)"
                   value={formData.password}
-                  onChange={handleChange}
-                />
-              </div>
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Confirm Password
-                </label>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-gray-900 placeholder-gray-400"
-                  placeholder="Confirm password"
-                  value={formData.confirmPassword}
                   onChange={handleChange}
                 />
               </div>

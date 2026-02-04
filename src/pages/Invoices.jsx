@@ -79,7 +79,7 @@ const Invoices = () => {
       const searchLower = searchTerm.toLowerCase()
       const matchesSearch =
         (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(searchLower)) ||
-        (lead && lead.caseNumber && lead.caseNumber.toLowerCase().includes(searchLower)) ||
+        (lead && lead.loanAccountNo && lead.loanAccountNo.toLowerCase().includes(searchLower)) ||
         (invoice.agent?.name && invoice.agent.name.toLowerCase().includes(searchLower))
       const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter
       return matchesSearch && matchesStatus
@@ -242,7 +242,7 @@ const Invoices = () => {
       const compareId = leadId?._id || leadId?.id || leadId
       return lId === compareId || lId?.toString() === compareId?.toString()
     })
-    return lead ? (lead.caseNumber || 'N/A') : 'N/A'
+    return lead ? (lead.loanAccountNo || 'N/A') : 'N/A'
   }
 
   const isOverdue = (dueDate) => {
@@ -419,7 +419,7 @@ const Invoices = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {invoice.lead?.caseNumber || getLeadName(invoice.lead?._id || invoice.lead?.id || invoice.lead || invoice.leadId) || 'N/A'}
+                        {invoice.lead?.loanAccountNo || getLeadName(invoice.lead?._id || invoice.lead?.id || invoice.lead || invoice.leadId) || 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

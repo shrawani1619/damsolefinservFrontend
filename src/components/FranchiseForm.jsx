@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 
 const FranchiseForm = ({ franchise, onSave, onClose }) => {
+  const isCreate = !franchise
   const [formData, setFormData] = useState({
     name: '',
     ownerName: '',
     email: '',
     mobile: '',
+    password: '',
     status: 'active',
     address: {
       street: '',
@@ -24,6 +26,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
         ownerName: franchise.ownerName || '',
         email: franchise.email || '',
         mobile: franchise.mobile || '',
+        password: '',
         status: franchise.status || 'active',
         address: {
           street: franchise.address?.street || '',
@@ -39,7 +42,12 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
     const newErrors = {}
     if (!formData.name.trim()) newErrors.name = 'Franchise name is required'
     if (!formData.ownerName.trim()) newErrors.ownerName = 'Owner name is required'
-
+    if (isCreate) {
+      if (!formData.email?.trim()) newErrors.email = 'Email is required for login'
+      if (!formData.mobile?.trim()) newErrors.mobile = 'Mobile is required'
+      if (!formData.password) newErrors.password = 'Password is required for owner login'
+      else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters'
+    }
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -47,7 +55,11 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      onSave(formData)
+      const payload = { ...formData }
+      if (!isCreate) {
+        delete payload.password
+      }
+      onSave(payload)
     }
   }
 
@@ -74,9 +86,8 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           name="name"
           value={formData.name}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-            errors.name ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.name ? 'border-red-500' : 'border-gray-300'
+            }`}
           placeholder="Enter franchise name"
         />
         {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
@@ -91,9 +102,8 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           name="ownerName"
           value={formData.ownerName}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-            errors.ownerName ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.ownerName ? 'border-red-500' : 'border-gray-300'
+            }`}
           placeholder="Enter owner name"
         />
         {errors.ownerName && <p className="mt-1 text-sm text-red-600">{errors.ownerName}</p>}
@@ -101,31 +111,55 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Email
+          Email {isCreate && <span className="text-red-500">*</span>}
         </label>
         <input
           type="email"
           name="email"
           value={formData.email}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          placeholder="Enter email address"
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
+            }`}
+          placeholder="Owner login email"
         />
+        {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Mobile
+          Mobile {isCreate && <span className="text-red-500">*</span>}
         </label>
         <input
           type="text"
           name="mobile"
           value={formData.mobile}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          placeholder="Enter mobile number"
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.mobile ? 'border-red-500' : 'border-gray-300'
+            }`}
+          placeholder="Owner mobile number"
         />
+        {errors.mobile && <p className="mt-1 text-sm text-red-600">{errors.mobile}</p>}
       </div>
+
+      {isCreate && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Owner Login Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
+                }`}
+              placeholder="Min 6 characters"
+            />
+            {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+          </div>
+        </>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">

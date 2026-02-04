@@ -305,9 +305,9 @@ const Dashboard = () => {
                 {agentData.completedLeadsWithoutInvoices.slice(0, 5).map((lead) => (
                   <div key={lead._id || lead.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">{lead.caseNumber || 'N/A'}</p>
+                      <p className="text-sm font-medium text-gray-900">{lead.loanAccountNo || 'N/A'}</p>
                       <p className="text-xs text-gray-600">
-                        Case: {lead.caseNumber || 'N/A'} • {lead.bank?.name || 'N/A'} • ₹{(lead.loanAmount || 0).toLocaleString()}
+                        {lead.loanAccountNo || 'N/A'} • {lead.bank?.name || 'N/A'} • ₹{(lead.loanAmount || 0).toLocaleString()}
                       </p>
                     </div>
                     <button
@@ -343,7 +343,7 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">{invoice.invoiceNumber || 'N/A'}</p>
                       <p className="text-xs text-gray-600">
-                        {invoice.lead?.caseNumber || 'N/A'} • ₹{(invoice.commissionAmount || invoice.netPayable || 0).toLocaleString()}
+                        {invoice.lead?.loanAccountNo || 'N/A'} • ₹{(invoice.commissionAmount || invoice.netPayable || 0).toLocaleString()}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -389,7 +389,7 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">{invoice.invoiceNumber || 'N/A'}</p>
                       <p className="text-xs text-gray-600">
-                        {invoice.lead?.caseNumber || 'N/A'} • ₹{(invoice.commissionAmount || invoice.netPayable || 0).toLocaleString()}
+                        {invoice.lead?.loanAccountNo || 'N/A'} • ₹{(invoice.commissionAmount || invoice.netPayable || 0).toLocaleString()}
                       </p>
                       {invoice.escalationReason && (
                         <p className="text-xs text-orange-700 mt-1">Reason: {invoice.escalationReason}</p>
@@ -423,7 +423,7 @@ const Dashboard = () => {
                 {relatedLists.recentLeads.map((lead) => (
                   <div key={lead.id || lead._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">{lead.caseNumber || 'N/A'}</p>
+                      <p className="text-sm font-medium text-gray-900">{lead.loanAccountNo || 'N/A'}</p>
                       <p className="text-xs text-gray-600">
                         {lead.bank?.name || 'N/A'} • ₹{(lead.loanAmount || 0).toLocaleString()}
                       </p>
@@ -544,7 +544,7 @@ const Dashboard = () => {
                 relatedLists.recentLeads.map((lead) => (
                   <div key={lead.id || lead._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">{lead.caseNumber || 'N/A'}</p>
+                      <p className="text-sm font-medium text-gray-900">{lead.loanAccountNo || 'N/A'}</p>
                       <p className="text-xs text-gray-600">
                         {lead.agent?.name || 'N/A'} • {lead.franchise?.name || 'N/A'}
                       </p>

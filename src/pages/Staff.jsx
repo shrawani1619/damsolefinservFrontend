@@ -60,10 +60,10 @@ const Staff = () => {
   // Filter and search staff
   const filteredStaff = useMemo(() => {
     if (!staff || staff.length === 0) return []
-    
+
     return staff.filter((member) => {
       if (!member) return false
-      
+
       const searchLower = searchTerm.toLowerCase()
       const matchesSearch =
         (member.name && member.name.toLowerCase().includes(searchLower)) ||
@@ -82,7 +82,7 @@ const Staff = () => {
 
     return [...filteredStaff].sort((a, b) => {
       if (!a || !b) return 0
-      
+
       let aValue = a[sortConfig.key]
       let bValue = b[sortConfig.key]
 
@@ -168,8 +168,8 @@ const Staff = () => {
         toast.success('Success', 'Staff updated successfully')
       } else {
         // Create new staff - map fields and generate default password
-        const { phone, confirmPassword, ...rest } = formData
-        
+        const { phone, ...rest } = formData
+
         // Validate required fields
         if (!phone || !phone.trim()) {
           toast.error('Error', 'Phone number is required')
@@ -179,7 +179,7 @@ const Staff = () => {
           toast.error('Error', 'Password is required')
           return
         }
-        
+
         const staffData = {
           name: rest.name,
           email: rest.email,
@@ -191,9 +191,9 @@ const Staff = () => {
           department: rest.department?.trim() || undefined, // Department is required in form
           salary: rest.salary ? parseFloat(rest.salary) : 0,
         }
-        
+
         console.log('🔍 DEBUG: Creating staff with data:', JSON.stringify(staffData, null, 2))
-        
+
         await api.staff.create(staffData)
         await fetchStaff()
         setIsCreateModalOpen(false)

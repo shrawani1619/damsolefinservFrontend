@@ -11,8 +11,10 @@ import { toast } from '../services/toastService'
 const Leads = () => {
   const userRole = authService.getUser()?.role || 'super_admin'
   const isAgent = userRole === 'agent'
-  const canViewHistory = ['super_admin', 'relationship_manager', 'franchise_owner'].includes(userRole)
-  
+  const canViewHistory = ['super_admin', 'relationship_manager', 'franchise_owner', 'agent'].includes(userRole)
+  const canEdit = !isAgent
+  const canCreate = true // Agents can create leads
+
   const [leads, setLeads] = useState([])
   const [agents, setAgents] = useState([])
   const [banks, setBanks] = useState([])
@@ -33,28 +35,34 @@ const Leads = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [expandedFields, setExpandedFields] = useState({})
   const [showColumnSettings, setShowColumnSettings] = useState(false)
-  
+
   // Column configuration with all available fields
   const [columnConfig, setColumnConfig] = useState(() => {
     const saved = localStorage.getItem('leadsColumnConfig')
     if (saved) {
       try {
-        return JSON.parse(saved)
+        const parsed = JSON.parse(saved)
+        // Remove leadType, contact, caseNumber, and verificationStatus columns if they exist in saved config
+        const filtered = parsed.filter(col => col.key !== 'leadType' && col.key !== 'contact' && col.key !== 'caseNumber' && col.key !== 'verificationStatus')
+        // Update codeUse label to 'DSA Code' if it exists
+        const updated = filtered.map(col => {
+          if (col.key === 'codeUse') {
+            return { ...col, label: 'DSA Code' }
+          }
+          return col
+        })
+        return updated
       } catch (e) {
         console.error('Error parsing saved column config:', e)
       }
     }
     return [
-      { key: 'caseNumber', label: 'Case Number', visible: true, sortable: true },
       { key: 'customerName', label: 'Customer Name', visible: true, sortable: true },
-      { key: 'contact', label: 'Contact', visible: true, sortable: false },
-      { key: 'leadType', label: 'Lead Type', visible: true, sortable: true },
       { key: 'loanType', label: 'Loan Type', visible: true, sortable: true },
       { key: 'loanAmount', label: 'Loan Amount', visible: true, sortable: true },
       { key: 'sanctionedAmount', label: 'Sanctioned Amount', visible: true, sortable: true },
       { key: 'disbursedAmount', label: 'Disbursed Amount', visible: true, sortable: true },
       { key: 'status', label: 'Status', visible: true, sortable: true },
-      { key: 'verificationStatus', label: 'Verification Status', visible: true, sortable: true },
       { key: 'agent', label: 'Agent', visible: true, sortable: false },
       { key: 'franchise', label: 'Franchise', visible: true, sortable: false },
       { key: 'bank', label: 'Bank', visible: true, sortable: false },
@@ -64,7 +72,7 @@ const Leads = () => {
       { key: 'loanAccountNo', label: 'Loan Account No', visible: true, sortable: true },
       { key: 'disbursementDate', label: 'Disbursement Date', visible: true, sortable: true },
       { key: 'sanctionedDate', label: 'Sanctioned Date', visible: true, sortable: true },
-      { key: 'codeUse', label: 'Code Use', visible: true, sortable: true },
+      { key: 'codeUse', label: 'DSA Code', visible: true, sortable: true },
       { key: 'remarks', label: 'Remarks', visible: false, sortable: false },
       { key: 'createdAt', label: 'Created', visible: true, sortable: true },
       { key: 'actions', label: 'Actions', visible: true, sortable: false },
@@ -72,7 +80,16 @@ const Leads = () => {
   })
 
   useEffect(() => {
-    localStorage.setItem('leadsColumnConfig', JSON.stringify(columnConfig))
+    // Filter out leadType, contact, caseNumber, and verificationStatus columns before saving
+    const filteredConfig = columnConfig.filter(col => col.key !== 'leadType' && col.key !== 'contact' && col.key !== 'caseNumber' && col.key !== 'verificationStatus')
+    // Ensure codeUse label is 'DSA Code'
+    const updatedConfig = filteredConfig.map(col => {
+      if (col.key === 'codeUse') {
+        return { ...col, label: 'DSA Code' }
+      }
+      return col
+    })
+    localStorage.setItem('leadsColumnConfig', JSON.stringify(updatedConfig))
   }, [columnConfig])
 
   useEffect(() => {
@@ -109,7 +126,7 @@ const Leads = () => {
       setLoading(true)
       const response = await api.leads.getAll()
       console.log('🔍 DEBUG: Leads API response:', response)
-      
+
       // Handle different response structures
       let leadsData = []
       if (Array.isArray(response)) {
@@ -122,7 +139,7 @@ const Leads = () => {
         console.warn('⚠️ Unexpected response structure:', response)
         leadsData = []
       }
-      
+
       console.log('🔍 DEBUG: Parsed leads data:', leadsData.length, 'leads')
       if (leadsData.length > 0) {
         console.log('🔍 DEBUG: Sample lead agent data:', {
@@ -189,20 +206,31 @@ const Leads = () => {
   // Filter and search leads
   const filteredLeads = useMemo(() => {
     if (!leads || leads.length === 0) return []
-    
+
+    const searchLower = (searchTerm || '').trim().toLowerCase()
+    const hasSearch = searchLower.length > 0
+
     return leads.filter((lead) => {
       if (!lead) return false
-      
-      const searchLower = searchTerm.toLowerCase()
-      const applicantEmail = lead.applicantEmail || lead.email || ''
-      const applicantMobile = lead.applicantMobile || lead.phone || lead.mobile || ''
-      
-      const matchesSearch =
-        (applicantEmail && applicantEmail.toLowerCase().includes(searchLower)) ||
-        (applicantMobile && applicantMobile.toString().includes(searchTerm)) ||
-        (lead.caseNumber && lead.caseNumber.toLowerCase().includes(searchLower))
+
       const matchesStatus = statusFilter === 'all' || lead.status === statusFilter
-      return matchesSearch && matchesStatus
+      if (!matchesStatus) return false
+
+      if (!hasSearch) return true
+
+      const applicantEmail = lead.applicantEmail || lead.email || ''
+      const applicantMobile = (lead.applicantMobile || lead.phone || lead.mobile || '').toString()
+      const customerName = lead.customerName || ''
+      const caseNumber = lead.caseNumber || ''
+      const loanAccountNo = (lead.loanAccountNo || '').toString()
+
+      return (
+        applicantEmail.toLowerCase().includes(searchLower) ||
+        applicantMobile.includes(searchTerm.trim()) ||
+        customerName.toLowerCase().includes(searchLower) ||
+        caseNumber.toLowerCase().includes(searchLower) ||
+        loanAccountNo.toLowerCase().includes(searchLower)
+      )
     })
   }, [leads, searchTerm, statusFilter])
 
@@ -212,7 +240,7 @@ const Leads = () => {
 
     return [...filteredLeads].sort((a, b) => {
       if (!a || !b) return 0
-      
+
       let aValue = a[sortConfig.key]
       let bValue = b[sortConfig.key]
 
@@ -322,7 +350,7 @@ const Leads = () => {
       'customerName': 'Customer Name',
       'loanAccountNo': 'Loan Account No',
       'branch': 'Branch',
-      'codeUse': 'Code Use',
+      'codeUse': 'DSA Code',
       'asmName': 'ASM Name',
       'asmEmail': 'ASM Email',
       'asmMobile': 'ASM Mobile',
@@ -344,7 +372,7 @@ const Leads = () => {
     if (value instanceof Date || (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}/))) {
       return new Date(value).toLocaleString()
     }
-    
+
     // Handle ObjectId references - try to resolve to names
     if (typeof value === 'string' && value.match(/^[0-9a-fA-F]{24}$/)) {
       // It's an ObjectId, try to resolve it
@@ -366,7 +394,7 @@ const Leads = () => {
       }
       return value.substring(0, 8) + '...'
     }
-    
+
     // Handle object values (shouldn't happen, but just in case)
     if (typeof value === 'object') {
       if (value.name) return value.name
@@ -388,38 +416,19 @@ const Leads = () => {
       }
       return '[Object]'
     }
-    
+
     return String(value)
   }
 
   const handleSave = async (formData) => {
     try {
-      // Validate required fields
-      if (!formData.applicantMobile?.trim()) {
-        toast.error('Error', 'Mobile number is required')
-        return
-      }
+      // Validate required fields (only fields with red asterisk)
       if (!formData.loanType) {
         toast.error('Error', 'Loan type is required')
         return
       }
       if (!formData.loanAmount || formData.loanAmount <= 0) {
         toast.error('Error', 'Loan amount must be greater than 0')
-        return
-      }
-      if (!formData.agentId) {
-        toast.error('Error', 'Agent is required')
-        return
-      }
-      
-      // Validate agent ID format
-      if (typeof formData.agentId !== 'string' || formData.agentId.trim() === '') {
-        toast.error('Error', 'Invalid agent ID')
-        console.error('❌ Invalid agentId:', formData.agentId)
-        return
-      }
-      if (!formData.franchiseId) {
-        toast.error('Error', 'Franchise is required')
         return
       }
       if (!formData.bankId) {
@@ -430,8 +439,7 @@ const Leads = () => {
       // Map form data to backend API format
       const leadData = {
         caseNumber: formData.caseNumber?.trim() || undefined,
-        leadType: formData.leadType || 'fresh',
-        applicantMobile: formData.applicantMobile.trim(),
+        applicantMobile: formData.applicantMobile?.trim() || undefined,
         applicantEmail: formData.applicantEmail?.trim() || undefined,
         loanType: formData.loanType,
         loanAmount: parseFloat(formData.loanAmount),
@@ -455,7 +463,7 @@ const Leads = () => {
         asmName: formData.asmName?.trim() || undefined,
         asmEmail: formData.asmEmail?.trim() || undefined,
         asmMobile: formData.asmMobile?.trim() || undefined,
-        codeUse: formData.codeUse?.trim() || undefined,
+        dsaCode: formData.dsaCode?.trim() || formData.codeUse?.trim() || undefined,
         branch: formData.branch?.trim() || undefined,
         remarks: formData.remarks?.trim() || undefined,
       }
@@ -474,18 +482,21 @@ const Leads = () => {
         const response = await api.leads.update(leadId, leadData)
         console.log('🔍 DEBUG: Update response:', response)
         console.log('🔍 DEBUG: Updated lead agent data:', response?.data?.agent || response?.agent)
-        
+
         // Refresh leads list to get updated data with populated agent
         await fetchLeads()
-        
+
         // Wait a bit to ensure state updates
         setTimeout(() => {
           console.log('🔍 DEBUG: Leads after refresh:', leads.length)
         }, 500)
-        
+
         // Also refresh agents list in case it's needed for display
         await fetchAgents()
-        
+
+        // Refresh staff list in case a new SM/BM was created
+        await fetchStaff()
+
         setIsEditModalOpen(false)
         toast.success('Success', 'Lead updated successfully')
       } else {
@@ -493,8 +504,12 @@ const Leads = () => {
         const createResponse = await api.leads.create(leadData)
         console.log('🔍 DEBUG: Create response:', createResponse)
         console.log('🔍 DEBUG: Created lead agent data:', createResponse?.data?.agent || createResponse?.agent)
-        
+
         await fetchLeads()
+
+        // Refresh staff list in case a new SM/BM was created
+        await fetchStaff()
+
         setIsCreateModalOpen(false)
         toast.success('Success', 'Lead created successfully')
       }
@@ -549,12 +564,12 @@ const Leads = () => {
 
   const getAgentName = (agentIdOrObject) => {
     if (!agentIdOrObject) return 'N/A'
-    
+
     // If it's already an object with name property
     if (typeof agentIdOrObject === 'object' && agentIdOrObject.name) {
       return agentIdOrObject.name
     }
-    
+
     // For agents, try to get name from populated lead data
     if (isAgent && leads.length > 0) {
       const lead = leads.find(l => {
@@ -564,7 +579,7 @@ const Leads = () => {
       })
       if (lead?.agent?.name) return lead.agent.name
     }
-    
+
     // If it's an object with _id or id
     if (typeof agentIdOrObject === 'object') {
       const id = agentIdOrObject._id || agentIdOrObject.id
@@ -573,7 +588,7 @@ const Leads = () => {
         return agent ? (agent.name || 'N/A') : 'N/A'
       }
     }
-    
+
     // If it's a string ID
     const agent = agents.find((a) => a.id === agentIdOrObject || a._id === agentIdOrObject)
     return agent ? (agent.name || 'N/A') : 'N/A'
@@ -585,13 +600,32 @@ const Leads = () => {
     return bank ? (bank.name || 'N/A') : 'N/A'
   }
 
+  const getFranchiseName = (franchiseIdOrObject) => {
+    if (!franchiseIdOrObject) return 'N/A'
+
+    if (typeof franchiseIdOrObject === 'object' && franchiseIdOrObject.name) {
+      return franchiseIdOrObject.name
+    }
+
+    if (typeof franchiseIdOrObject === 'object') {
+      const id = franchiseIdOrObject._id || franchiseIdOrObject.id
+      if (id) {
+        const franchise = franchises.find((f) => f.id === id || f._id === id)
+        return franchise ? (franchise.name || 'N/A') : 'N/A'
+      }
+    }
+
+    const franchise = franchises.find((f) => f.id === franchiseIdOrObject || f._id === franchiseIdOrObject)
+    return franchise ? (franchise.name || 'N/A') : 'N/A'
+  }
+
   const getStaffName = (staffIdOrObject) => {
     if (!staffIdOrObject) return 'N/A'
-    
+
     if (typeof staffIdOrObject === 'object' && staffIdOrObject.name) {
       return staffIdOrObject.name
     }
-    
+
     if (typeof staffIdOrObject === 'object') {
       const id = staffIdOrObject._id || staffIdOrObject.id
       if (id) {
@@ -599,7 +633,7 @@ const Leads = () => {
         return staffMember ? (staffMember.name || 'N/A') : 'N/A'
       }
     }
-    
+
     const staffMember = staff.find((s) => s.id === staffIdOrObject || s._id === staffIdOrObject)
     return staffMember ? (staffMember.name || 'N/A') : 'N/A'
   }
@@ -638,7 +672,7 @@ const Leads = () => {
   }
 
   const toggleColumnVisibility = (key) => {
-    setColumnConfig(prev => prev.map(col => 
+    setColumnConfig(prev => prev.map(col =>
       col.key === key ? { ...col, visible: !col.visible } : col
     ))
   }
@@ -717,13 +751,15 @@ const Leads = () => {
               </div>
             )}
           </div>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Lead</span>
-          </button>
+          {canCreate && (
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Create Lead</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -766,9 +802,8 @@ const Leads = () => {
                 {visibleColumns.map((col) => (
                   <th
                     key={col.key}
-                    className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                      col.sortable ? 'cursor-pointer hover:bg-gray-100' : ''
-                    } ${col.key === 'actions' ? 'text-right' : ''}`}
+                    className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${col.sortable ? 'cursor-pointer hover:bg-gray-100' : ''
+                      } ${col.key === 'actions' ? 'text-right' : ''}`}
                     onClick={col.sortable ? () => handleSort(col.key) : undefined}
                   >
                     <div className={`flex items-center gap-2 ${col.key === 'actions' ? 'justify-end' : ''}`}>
@@ -799,16 +834,80 @@ const Leads = () => {
                       case 'caseNumber':
                         return <div className="text-sm font-medium text-gray-900">{lead.caseNumber || 'N/A'}</div>
                       case 'customerName':
-                        return <div className="text-sm text-gray-900">{lead.customerName || 'N/A'}</div>
-                      case 'contact':
                         return (
-                          <>
-                            <div className="text-sm text-gray-900">{lead.applicantEmail || lead.email || 'N/A'}</div>
-                            <div className="text-sm text-gray-500">{lead.applicantMobile || lead.phone || lead.mobile || 'N/A'}</div>
-                          </>
+                          <div className="relative" data-expandable>
+                            <div
+                              className="flex items-center gap-2 cursor-pointer hover:text-primary-900"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleExpand(lead.id || lead._id, 'customer')
+                              }}
+                            >
+                              <span className="text-sm text-gray-900">
+                                {lead.customerName || 'N/A'}
+                              </span>
+                              {isExpanded(lead.id || lead._id, 'customer') ? (
+                                <ChevronUp className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              )}
+                            </div>
+                            {isExpanded(lead.id || lead._id, 'customer') && (
+                              <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-gray-600">Name:</span>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-gray-900">{lead.customerName || 'N/A'}</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          copyToClipboard(lead.customerName || '', 'Name')
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded"
+                                        title="Copy name"
+                                      >
+                                        <Copy className="w-3 h-3 text-gray-500" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-gray-600">Email:</span>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-gray-900">{lead.applicantEmail || lead.email || 'N/A'}</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          copyToClipboard(lead.applicantEmail || lead.email || '', 'Email')
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded"
+                                        title="Copy email"
+                                      >
+                                        <Copy className="w-3 h-3 text-gray-500" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-gray-600">Mobile:</span>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-gray-900">{lead.applicantMobile || lead.phone || lead.mobile || 'N/A'}</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          copyToClipboard(lead.applicantMobile || lead.phone || lead.mobile || '', 'Mobile')
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded"
+                                        title="Copy mobile"
+                                      >
+                                        <Copy className="w-3 h-3 text-gray-500" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )
-                      case 'leadType':
-                        return <div className="text-sm text-gray-900 capitalize">{lead.leadType || 'N/A'}</div>
                       case 'loanType':
                         return <div className="text-sm text-gray-900">{lead.loanType?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'}</div>
                       case 'loanAmount':
@@ -834,11 +933,19 @@ const Leads = () => {
                           </div>
                         )
                       case 'franchise':
-                        return <div className="text-sm text-gray-900">{lead.franchise?.name || 'N/A'}</div>
+                        return <div className="text-sm text-gray-900">
+                          {(() => {
+                            if (lead.franchise && typeof lead.franchise === 'object' && lead.franchise.name) {
+                              return lead.franchise.name
+                            }
+                            const franchiseId = lead.franchiseId || (lead.franchise && (lead.franchise._id || lead.franchise.id)) || lead.franchise
+                            return getFranchiseName(franchiseId)
+                          })()}
+                        </div>
                       case 'bank':
                         return (
                           <div className="relative" data-expandable>
-                            <div 
+                            <div
                               className="flex items-center gap-2 cursor-pointer hover:text-primary-900"
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -913,7 +1020,7 @@ const Leads = () => {
                       case 'smBm':
                         return (
                           <div className="relative" data-expandable>
-                            <div 
+                            <div
                               className="flex items-center gap-2 cursor-pointer hover:text-primary-900"
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -1009,7 +1116,7 @@ const Leads = () => {
                       case 'asm':
                         return (
                           <div className="relative" data-expandable>
-                            <div 
+                            <div
                               className="flex items-center gap-2 cursor-pointer hover:text-primary-900"
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -1090,7 +1197,8 @@ const Leads = () => {
                       case 'sanctionedDate':
                         return <div className="text-sm text-gray-900">{lead.sanctionedDate ? new Date(lead.sanctionedDate).toLocaleDateString() : 'N/A'}</div>
                       case 'codeUse':
-                        return <div className="text-sm text-gray-900">{lead.codeUse || 'N/A'}</div>
+                      case 'dsaCode':
+                        return <div className="text-sm text-gray-900">{lead.dsaCode || lead.codeUse || 'N/A'}</div>
                       case 'remarks':
                         return <div className="text-sm text-gray-900 max-w-xs truncate" title={lead.remarks || 'N/A'}>{lead.remarks || 'N/A'}</div>
                       case 'createdAt':
@@ -1114,33 +1222,37 @@ const Leads = () => {
                                 <History className="w-4 h-4" />
                               </button>
                             )}
-                            <button
-                              onClick={() => handleEdit(lead)}
-                              className="text-gray-600 hover:text-gray-900 p-1"
-                              title="Edit"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClick(lead)}
-                              className="text-red-600 hover:text-red-900 p-1"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                            <select
-                              value={lead.status || 'logged'}
-                              onChange={(e) => handleStatusUpdate(lead.id || lead._id, e.target.value)}
-                              className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <option value="logged">Logged</option>
-                              <option value="sanctioned">Sanctioned</option>
-                              <option value="partial_disbursed">Partial Disbursed</option>
-                              <option value="disbursed">Disbursed</option>
-                              <option value="completed">Completed</option>
-                              <option value="rejected">Rejected</option>
-                            </select>
+                            {canEdit && (
+                              <>
+                                <button
+                                  onClick={() => handleEdit(lead)}
+                                  className="text-gray-600 hover:text-gray-900 p-1"
+                                  title="Edit"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(lead)}
+                                  className="text-red-600 hover:text-red-900 p-1"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                                <select
+                                  value={lead.status || 'logged'}
+                                  onChange={(e) => handleStatusUpdate(lead.id || lead._id, e.target.value)}
+                                  className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <option value="logged">Logged</option>
+                                  <option value="sanctioned">Sanctioned</option>
+                                  <option value="partial_disbursed">Partial Disbursed</option>
+                                  <option value="disbursed">Disbursed</option>
+                                  <option value="completed">Completed</option>
+                                  <option value="rejected">Rejected</option>
+                                </select>
+                              </>
+                            )}
                           </div>
                         )
                       default:
@@ -1151,8 +1263,8 @@ const Leads = () => {
                   return (
                     <tr key={lead.id || lead._id} className="hover:bg-gray-50 border-b border-gray-200">
                       {visibleColumns.map((col) => (
-                        <td 
-                          key={col.key} 
+                        <td
+                          key={col.key}
                           className={`px-6 py-4 whitespace-nowrap ${col.key === 'actions' ? 'text-right' : ''}`}
                         >
                           {renderCell(col)}
@@ -1232,10 +1344,6 @@ const Leads = () => {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Case Number</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedLead.caseNumber || 'N/A'}</p>
-              </div>
-              <div>
                 <label className="text-sm font-medium text-gray-500">Agent</label>
                 <p className="mt-1 text-sm text-gray-900">
                   {(() => {
@@ -1252,7 +1360,13 @@ const Leads = () => {
               <div>
                 <label className="text-sm font-medium text-gray-500">Franchise</label>
                 <p className="mt-1 text-sm text-gray-900">
-                  {selectedLead.franchise?.name || 'N/A'}
+                  {(() => {
+                    if (selectedLead.franchise && typeof selectedLead.franchise === 'object' && selectedLead.franchise.name) {
+                      return selectedLead.franchise.name
+                    }
+                    const franchiseId = selectedLead.franchiseId || (selectedLead.franchise && (selectedLead.franchise._id || selectedLead.franchise.id)) || selectedLead.franchise
+                    return getFranchiseName(franchiseId)
+                  })()}
                 </p>
               </div>
               <div>
@@ -1308,8 +1422,8 @@ const Leads = () => {
                 <p className="mt-1 text-sm text-gray-900">{selectedLead.asmMobile || 'N/A'}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Code Use</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedLead.codeUse || 'N/A'}</p>
+                <label className="text-sm font-medium text-gray-500">DSA Code</label>
+                <p className="mt-1 text-sm text-gray-900">{selectedLead.dsaCode || selectedLead.codeUse || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Branch</label>
@@ -1335,15 +1449,17 @@ const Leads = () => {
                   View History
                 </button>
               )}
-              <button
-                onClick={() => {
-                  setIsDetailModalOpen(false)
-                  handleEdit(selectedLead)
-                }}
-                className="flex-1 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
-              >
-                Edit Lead
-              </button>
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    setIsDetailModalOpen(false)
+                    handleEdit(selectedLead)
+                  }}
+                  className="flex-1 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+                >
+                  Edit Lead
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1406,7 +1522,7 @@ const Leads = () => {
                   {leadHistory.map((historyItem, index) => {
                     const isExpanded = isHistoryItemExpanded(index)
                     const changeCount = historyItem.changes?.length || 0
-                    
+
                     return (
                       <div
                         key={historyItem._id || historyItem.id || index}
@@ -1436,18 +1552,17 @@ const Leads = () => {
                                   </span>
                                 )}
                                 <span className="text-gray-400">
-                                  {historyItem.createdAt 
+                                  {historyItem.createdAt
                                     ? new Date(historyItem.createdAt).toLocaleString()
-                                    : historyItem.created_at 
-                                    ? new Date(historyItem.created_at).toLocaleString()
-                                    : 'N/A'}
+                                    : historyItem.created_at
+                                      ? new Date(historyItem.created_at).toLocaleString()
+                                      : 'N/A'}
                                 </span>
                               </div>
                             </div>
                             <ChevronDown
-                              className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${
-                                isExpanded ? 'transform rotate-180' : ''
-                              }`}
+                              className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'transform rotate-180' : ''
+                                }`}
                             />
                           </div>
                         </div>

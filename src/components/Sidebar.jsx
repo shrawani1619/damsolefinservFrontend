@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import logo from '/logo.webp'
 import { authService } from '../services/auth.service'
-import { 
-  LayoutDashboard, 
-  Users, 
-  UserCheck, 
-  Building2, 
-  Store, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Users,
+  UserCheck,
+  Building2,
+  Store,
+  FileText,
   CreditCard,
   ChevronLeft,
   ChevronRight,
@@ -34,9 +34,9 @@ const Sidebar = ({ onMinimizeChange }) => {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/', roles: ['super_admin', 'relationship_manager', 'franchise_manager', 'franchise_owner', 'agent', 'accounts'] },
     { icon: Users, label: 'Leads', path: '/leads', roles: ['super_admin', 'relationship_manager', 'franchise_manager', 'franchise_owner', 'agent'] },
     { icon: UserCheck, label: 'Agents', path: '/agents', roles: ['super_admin', 'relationship_manager', 'franchise_manager', 'franchise_owner'] },
+    { icon: Store, label: 'Franchises', path: '/franchises', roles: ['super_admin', 'relationship_manager', 'franchise_manager'] },
     { icon: Users, label: 'Relationship Manager', path: '/staff', roles: ['super_admin', 'relationship_manager'] },
     { icon: Building2, label: 'Banks', path: '/banks', roles: ['super_admin', 'relationship_manager', 'franchise_manager'] },
-    { icon: Store, label: 'Franchises', path: '/franchises', roles: ['super_admin', 'relationship_manager', 'franchise_manager'] },
     { icon: FileText, label: 'Invoices', path: '/invoices', roles: ['super_admin', 'relationship_manager', 'franchise_manager', 'franchise_owner', 'agent', 'accounts'] },
     { icon: CreditCard, label: 'Payouts', path: '/payouts', roles: ['super_admin', 'relationship_manager', 'franchise_manager', 'franchise_owner', 'agent', 'accounts'] },
   ]
@@ -85,10 +85,9 @@ const Sidebar = ({ onMinimizeChange }) => {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-900 font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
+                    `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                      ? 'bg-primary-50 text-primary-900 font-medium'
+                      : 'text-gray-700 hover:bg-gray-50'
                     }`
                   }
                   title={isMinimized ? item.label : ''}
@@ -116,10 +115,9 @@ const Sidebar = ({ onMinimizeChange }) => {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-900 font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
+                    `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                      ? 'bg-primary-50 text-primary-900 font-medium'
+                      : 'text-gray-700 hover:bg-gray-50'
                     }`
                   }
                   title={isMinimized ? item.label : ''}

@@ -100,16 +100,16 @@ const Agents = () => {
       console.log('⚠️ getAgentLeadStats: No agentId provided')
       return { total: 0, active: 0, completed: 0, commission: 0 }
     }
-    
+
     console.log('🔍 DEBUG: getAgentLeadStats called for agentId:', agentId)
     console.log('🔍 DEBUG: Total leads available:', leads?.length || 0)
     console.log('🔍 DEBUG: Total invoices available:', invoices?.length || 0)
-    
+
     // Calculate leads statistics
     const agentLeads = leads && leads.length > 0 ? leads.filter(lead => {
       const leadAgentId = lead.agent?._id || lead.agent?.id || lead.agent || lead.agentId
       const matches = leadAgentId === agentId || leadAgentId?.toString() === agentId?.toString()
-      
+
       // Debug first few leads
       if (leads.indexOf(lead) < 3) {
         console.log('🔍 DEBUG: Lead agent check:', {
@@ -121,32 +121,32 @@ const Agents = () => {
           agentIdType: typeof agentId
         })
       }
-      
+
       return matches
     }) : []
-    
+
     console.log('🔍 DEBUG: Agent leads found:', agentLeads.length)
-    
+
     const total = agentLeads.length
-    const active = agentLeads.filter(lead => 
+    const active = agentLeads.filter(lead =>
       lead.status === 'logged'
     ).length
     const completed = agentLeads.filter(lead => lead.status === 'completed').length
-    
+
     // Calculate commission from invoices (more accurate)
     const agentInvoices = invoices && invoices.length > 0 ? invoices.filter(invoice => {
       const invoiceAgentId = invoice.agent?._id || invoice.agent?.id || invoice.agent || invoice.agentId
       return invoiceAgentId === agentId || invoiceAgentId?.toString() === agentId?.toString()
     }) : []
-    
+
     console.log('🔍 DEBUG: Agent invoices found:', agentInvoices.length)
-    
+
     const commission = agentInvoices.reduce((sum, invoice) => {
       return sum + (invoice.commissionAmount || invoice.netPayable || invoice.amount || 0)
     }, 0)
-    
+
     console.log('🔍 DEBUG: Final stats:', { total, active, completed, commission })
-    
+
     return { total, active, completed, commission }
   }
 
@@ -162,10 +162,10 @@ const Agents = () => {
   // Filter and search agents
   const filteredAgents = useMemo(() => {
     if (!agents || agents.length === 0) return []
-    
+
     return agents.filter((agent) => {
       if (!agent) return false
-      
+
       const searchLower = searchTerm.toLowerCase()
       const matchesSearch =
         (agent.name && agent.name.toLowerCase().includes(searchLower)) ||
@@ -182,7 +182,7 @@ const Agents = () => {
 
     return [...filteredAgents].sort((a, b) => {
       if (!a || !b) return 0
-      
+
       let aValue = a[sortConfig.key]
       let bValue = b[sortConfig.key]
 
@@ -248,11 +248,12 @@ const Agents = () => {
           return
         }
         // Map frontend fields to backend fields
+        const franchiseId = selectedAgent.franchise?._id || selectedAgent.franchise?.id || selectedAgent.franchise
         const updateData = {
           name: formData.name,
           email: formData.email,
           mobile: formData.phone || formData.mobile,
-          franchise: formData.franchiseId || formData.franchise,
+          ...(franchiseId && { franchise: franchiseId }),
           status: formData.status,
         }
         await api.agents.update(agentId, updateData)
@@ -262,31 +263,24 @@ const Agents = () => {
         setIsEditModalOpen(false)
         toast.success('Success', 'Agent updated successfully')
       } else {
-        // Create new agent - map fields and generate default password
-        const { phone, franchiseId, ...rest } = formData
-        
-        // Validate required fields
+        const { phone, ...rest } = formData
+
         if (!phone || !phone.trim()) {
           toast.error('Error', 'Phone number is required')
           return
         }
-        if (!franchiseId || !franchiseId.trim()) {
-          toast.error('Error', 'Franchise selection is required')
-          return
-        }
-        
+
         const agentData = {
           name: rest.name,
           email: rest.email,
-          mobile: phone.trim(), // Map phone to mobile
-          franchise: franchiseId, // Map franchiseId to franchise
-          password: rest.password || 'Agent@123', // Default password if not provided
+          mobile: phone.trim(),
+          password: rest.password || 'Agent@123',
           role: 'agent',
           status: rest.status || 'active',
         }
-        
+
         console.log('🔍 DEBUG: Creating agent with data:', JSON.stringify(agentData, null, 2))
-        
+
         await api.agents.create(agentData)
         await fetchAgents()
         await fetchLeads() // Refresh leads to update statistics
@@ -325,8 +319,9 @@ const Agents = () => {
   }
 
   const getFranchiseName = (franchiseId) => {
-    const franchise = franchises.find((f) => f.id === franchiseId)
-    return franchise ? `${franchise.name} - ${franchise.location}` : 'N/A'
+    if (!franchiseId) return 'N/A'
+    const franchise = franchises.find((f) => (f.id || f._id) === franchiseId || (f.id || f._id)?.toString() === franchiseId?.toString())
+    return franchise ? (franchise.name || 'N/A') : 'N/A'
   }
 
   const getAgentLeads = (agentId) => {
@@ -515,7 +510,7 @@ const Agents = () => {
                   const agentId = agent.id || agent._id
                   const leadStats = getAgentLeadStats(agentId)
                   const franchiseId = agent.franchise?._id || agent.franchise?.id || agent.franchise || agent.franchiseId
-                  
+
                   return (
                     <tr key={agentId || `agent-${index}`} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -544,35 +539,35 @@ const Agents = () => {
                           ₹{leadStats.commission.toLocaleString()}
                         </div>
                       </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <StatusBadge status={agent.status} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleView(agent)}
-                          className="text-primary-900 hover:text-primary-800 p-1"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(agent)}
-                          className="text-gray-600 hover:text-gray-900 p-1"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(agent)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <StatusBadge status={agent.status} />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleView(agent)}
+                            className="text-primary-900 hover:text-primary-800 p-1"
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(agent)}
+                            className="text-gray-600 hover:text-gray-900 p-1"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClick(agent)}
+                            className="text-red-600 hover:text-red-900 p-1"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   )
                 })
               )}
@@ -638,12 +633,7 @@ const Agents = () => {
               <div>
                 <label className="text-sm font-medium text-gray-500">Franchise</label>
                 <p className="mt-1 text-sm text-gray-900">
-                  {selectedAgent.franchise?.name 
-                    ? `${selectedAgent.franchise.name}${selectedAgent.franchise.location ? ` - ${selectedAgent.franchise.location}` : ''}`
-                    : (() => {
-                        const franchiseId = selectedAgent.franchiseId || selectedAgent.franchise?._id || selectedAgent.franchise?.id || selectedAgent.franchise
-                        return getFranchiseName(franchiseId) || 'N/A'
-                      })()}
+                  {selectedAgent.franchise?.name || getFranchiseName(selectedAgent.franchiseId || selectedAgent.franchise?._id || selectedAgent.franchise?.id || selectedAgent.franchise) || 'N/A'}
                 </p>
               </div>
               <div>

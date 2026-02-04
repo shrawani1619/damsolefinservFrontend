@@ -38,16 +38,6 @@ const apiRequest = async (endpoint, options = {}) => {
     if (!response.ok) {
       const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
       
-      // #region agent log
-      console.error('❌ DEBUG: API request failed:', {
-        status: response.status,
-        endpoint,
-        errorMessage,
-        responseData: data
-      });
-      fetch('http://127.0.0.1:7242/ingest/f11153c6-25cf-4c9c-a0b4-730f202e186d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.js:38',message:'API request failed',data:{status:response.status,endpoint,errorMessage,responseData:data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       // Handle 401 - redirect to login (but not for auth endpoints)
       if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
         // Clear auth data
@@ -75,14 +65,6 @@ const apiRequest = async (endpoint, options = {}) => {
       apiError._toastShown = true;
       throw apiError;
     }
-
-    // #region agent log
-    console.log('✅ DEBUG: API request successful:', {
-      endpoint,
-      responseData: data
-    });
-    fetch('http://127.0.0.1:7242/ingest/f11153c6-25cf-4c9c-a0b4-730f202e186d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.js:64',message:'API request successful',data:{endpoint,responseData:data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     return data;
   } catch (error) {
@@ -267,6 +249,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ status }),
     }),
+    delete: (id) => apiRequest(`/agents/${id}`, { method: 'DELETE' }),
   },
 
   // Staff endpoints
@@ -372,16 +355,10 @@ export const api = {
       return apiRequest(`/banks${queryString ? `?${queryString}` : ''}`);
     },
     getById: (id) => apiRequest(`/banks/${id}`),
-    create: (data) => {
-      // #region agent log
-      console.log('🔍 DEBUG: api.banks.create called with:', JSON.stringify(data, null, 2));
-      fetch('http://127.0.0.1:7242/ingest/f11153c6-25cf-4c9c-a0b4-730f202e186d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.js:305',message:'api.banks.create data',data:data,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      return apiRequest('/banks', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    },
+    create: (data) => apiRequest('/banks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
     update: (id, data) => apiRequest(`/banks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

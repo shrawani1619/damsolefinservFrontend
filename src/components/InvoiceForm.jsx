@@ -216,7 +216,7 @@ const InvoiceForm = ({ invoice, onSave, onClose }) => {
           ) : (
             leads.map((lead) => (
               <option key={lead.id || lead._id} value={lead.id || lead._id}>
-                {lead.caseNumber || 'N/A'} - ₹{(lead.loanAmount || 0).toLocaleString()}
+                {lead.loanAccountNo || 'N/A'} - ₹{(lead.loanAmount || 0).toLocaleString()}
               </option>
             ))
           )}

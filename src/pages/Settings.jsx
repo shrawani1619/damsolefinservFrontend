@@ -12,6 +12,15 @@ const Settings = () => {
     mobile: '',
     profileImage: null,
     role: null,
+    status: null,
+    franchise: null,
+    commissionPercentage: null,
+    kyc: {},
+    bankDetails: {},
+    lastLoginAt: null,
+    createdAt: null,
+    updatedAt: null,
+    permissions: [],
   })
 
   const [previewImage, setPreviewImage] = useState(null)
@@ -40,6 +49,15 @@ const Settings = () => {
             mobile: userData.mobile || userData.phone || '',
             profileImage: userData.profileImage || null,
             role: userData.role || null,
+            status: userData.status ?? null,
+            franchise: userData.franchise ?? null,
+            commissionPercentage: userData.commissionPercentage ?? null,
+            kyc: userData.kyc || {},
+            bankDetails: userData.bankDetails || {},
+            lastLoginAt: userData.lastLoginAt ?? null,
+            createdAt: userData.createdAt ?? null,
+            updatedAt: userData.updatedAt ?? null,
+            permissions: userData.permissions || [],
           }
           
           setUser(userState)
@@ -67,6 +85,15 @@ const Settings = () => {
             mobile: storedUser.mobile || storedUser.phone || '',
             profileImage: storedUser.profileImage || null,
             role: storedUser.role || null,
+            status: storedUser.status ?? null,
+            franchise: storedUser.franchise ?? null,
+            commissionPercentage: storedUser.commissionPercentage ?? null,
+            kyc: storedUser.kyc || {},
+            bankDetails: storedUser.bankDetails || {},
+            lastLoginAt: storedUser.lastLoginAt ?? null,
+            createdAt: storedUser.createdAt ?? null,
+            updatedAt: storedUser.updatedAt ?? null,
+            permissions: storedUser.permissions || [],
           }
           setUser(userState)
           setFormData({
@@ -273,6 +300,13 @@ const Settings = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              Mobile
+            </label>
+            <p className="text-sm text-gray-900 py-2">{user.mobile || '—'}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Role
             </label>
             <p className="text-sm text-gray-900 py-2">
@@ -285,6 +319,92 @@ const Settings = () => {
               )}
             </p>
           </div>
+
+          {user.status != null && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <p className="text-sm text-gray-900 py-2">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  user.status === 'active' ? 'bg-green-100 text-green-800' :
+                  user.status === 'inactive' ? 'bg-gray-100 text-gray-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  {String(user.status).charAt(0).toUpperCase() + String(user.status).slice(1)}
+                </span>
+              </p>
+            </div>
+          )}
+
+          {(user.role === 'agent' || user.role === 'franchise_owner') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Franchise</label>
+              <p className="text-sm text-gray-900 py-2">
+                {user.franchise
+                  ? (typeof user.franchise === 'object' && user.franchise?.name ? user.franchise.name : String(user.franchise))
+                  : '—'}
+              </p>
+            </div>
+          )}
+
+          {user.role === 'agent' && user.commissionPercentage != null && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Commission %</label>
+              <p className="text-sm text-gray-900 py-2">{user.commissionPercentage}%</p>
+            </div>
+          )}
+
+          {user.kyc && (user.kyc.pan || user.kyc.aadhaar || user.kyc.gst || user.kyc.verified != null) && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">KYC</label>
+              <div className="rounded-lg border border-gray-200 p-3 space-y-2 bg-gray-50">
+                {user.kyc.pan && <p className="text-sm text-gray-900"><span className="text-gray-600">PAN:</span> {user.kyc.pan}</p>}
+                {user.kyc.aadhaar && <p className="text-sm text-gray-900"><span className="text-gray-600">Aadhaar:</span> {user.kyc.aadhaar}</p>}
+                {user.kyc.gst && <p className="text-sm text-gray-900"><span className="text-gray-600">GST:</span> {user.kyc.gst}</p>}
+                {user.kyc.verified != null && (
+                  <p className="text-sm text-gray-900">
+                    <span className="text-gray-600">Verified:</span>{' '}
+                    <span className={user.kyc.verified ? 'text-green-600 font-medium' : 'text-amber-600'}>{user.kyc.verified ? 'Yes' : 'No'}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {user.bankDetails && (user.bankDetails.accountHolderName || user.bankDetails.accountNumber || user.bankDetails.ifsc || user.bankDetails.bankName) && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Bank Details</label>
+              <div className="rounded-lg border border-gray-200 p-3 space-y-2 bg-gray-50">
+                {user.bankDetails.accountHolderName && <p className="text-sm text-gray-900"><span className="text-gray-600">Account Holder:</span> {user.bankDetails.accountHolderName}</p>}
+                {user.bankDetails.bankName && <p className="text-sm text-gray-900"><span className="text-gray-600">Bank:</span> {user.bankDetails.bankName}</p>}
+                {user.bankDetails.accountNumber && <p className="text-sm text-gray-900"><span className="text-gray-600">Account No:</span> {user.bankDetails.accountNumber}</p>}
+                {user.bankDetails.ifsc && <p className="text-sm text-gray-900"><span className="text-gray-600">IFSC:</span> {user.bankDetails.ifsc}</p>}
+              </div>
+            </div>
+          )}
+
+          {user.lastLoginAt && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Last Login</label>
+              <p className="text-sm text-gray-900 py-2">{new Date(user.lastLoginAt).toLocaleString()}</p>
+            </div>
+          )}
+
+          {user.createdAt && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Joined</label>
+              <p className="text-sm text-gray-900 py-2">{new Date(user.createdAt).toLocaleDateString()}</p>
+            </div>
+          )}
+
+          {user.permissions && user.permissions.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Permissions</label>
+              <p className="text-sm text-gray-900 py-2 flex flex-wrap gap-1">
+                {user.permissions.map((p) => (
+                  <span key={p} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{p}</span>
+                ))}
+              </p>
+            </div>
+          )}
 
           {isEditing && (
             <div className="flex items-center gap-3 pt-4 border-t border-gray-200">

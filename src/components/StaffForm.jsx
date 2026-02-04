@@ -6,7 +6,6 @@ const StaffForm = ({ staff, onSave, onClose }) => {
     email: '',
     phone: '',
     password: '',
-    confirmPassword: '',
     role: '',
     department: '',
     salary: '',
@@ -47,29 +46,15 @@ const StaffForm = ({ staff, onSave, onClose }) => {
     if (!formData.role) newErrors.role = 'Role is required'
     if (!formData.department) newErrors.department = 'Department is required'
     if (!formData.salary || formData.salary <= 0) newErrors.salary = 'Salary must be greater than 0'
-    
+
     // Password validation - required for new staff, optional for updates
     if (!staff) {
-      // Creating new staff - password is required
       if (!formData.password || formData.password.length < 6) {
         newErrors.password = 'Password is required and must be at least 6 characters'
       }
-      if (!formData.confirmPassword) {
-        newErrors.confirmPassword = 'Please confirm password'
-      } else if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match'
-      }
     } else {
-      // Updating staff - password is optional, but if provided, validate
-      if (formData.password) {
-        if (formData.password.length < 6) {
-          newErrors.password = 'Password must be at least 6 characters'
-        }
-        if (!formData.confirmPassword) {
-          newErrors.confirmPassword = 'Please confirm password'
-        } else if (formData.password !== formData.confirmPassword) {
-          newErrors.confirmPassword = 'Passwords do not match'
-        }
+      if (formData.password && formData.password.length < 6) {
+        newErrors.password = 'Password must be at least 6 characters'
       }
     }
 
@@ -81,10 +66,8 @@ const StaffForm = ({ staff, onSave, onClose }) => {
     e.preventDefault()
     if (validate()) {
       const dataToSave = { ...formData }
-      delete dataToSave.confirmPassword // Don't send confirmPassword to backend
-      // Only include password if it's provided (for new staff it's required, for updates it's optional)
       if (staff && !dataToSave.password) {
-        delete dataToSave.password // Don't send empty password for updates
+        delete dataToSave.password
       }
       onSave({
         ...dataToSave,
@@ -116,9 +99,8 @@ const StaffForm = ({ staff, onSave, onClose }) => {
           name="name"
           value={formData.name}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-            errors.name ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.name ? 'border-red-500' : 'border-gray-300'
+            }`}
           placeholder="Enter full name"
         />
         {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
@@ -133,9 +115,8 @@ const StaffForm = ({ staff, onSave, onClose }) => {
           name="email"
           value={formData.email}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-            errors.email ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
+            }`}
           placeholder="Enter email address"
         />
         {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
@@ -150,9 +131,8 @@ const StaffForm = ({ staff, onSave, onClose }) => {
           name="phone"
           value={formData.phone}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-            errors.phone ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'
+            }`}
           placeholder="Enter phone number"
         />
         {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
@@ -167,29 +147,11 @@ const StaffForm = ({ staff, onSave, onClose }) => {
           name="password"
           value={formData.password}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-            errors.password ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
+            }`}
           placeholder="Enter password (min 6 characters)"
         />
         {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Confirm Password {staff ? '(Optional)' : <span className="text-red-500">*</span>}
-        </label>
-        <input
-          type="password"
-          name="confirmPassword"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-            errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-          }`}
-          placeholder="Confirm password"
-        />
-        {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -201,9 +163,8 @@ const StaffForm = ({ staff, onSave, onClose }) => {
             name="role"
             value={formData.role}
             onChange={handleChange}
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-              errors.role ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.role ? 'border-red-500' : 'border-gray-300'
+              }`}
           >
             <option value="">Select a role</option>
             {roles.map((role) => (
@@ -223,9 +184,8 @@ const StaffForm = ({ staff, onSave, onClose }) => {
             name="department"
             value={formData.department}
             onChange={handleChange}
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-              errors.department ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.department ? 'border-red-500' : 'border-gray-300'
+              }`}
           >
             <option value="">Select a department</option>
             {departments.map((dept) => (
@@ -247,9 +207,8 @@ const StaffForm = ({ staff, onSave, onClose }) => {
           name="salary"
           value={formData.salary}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-            errors.salary ? 'border-red-500' : 'border-gray-300'
-          }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.salary ? 'border-red-500' : 'border-gray-300'
+            }`}
           placeholder="Enter salary"
           min="0"
           step="1000"
