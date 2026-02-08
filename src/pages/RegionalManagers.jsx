@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Search, Building2, Mail, Phone, Plus, Filter, ChevronDown, ChevronUp, Users } from 'lucide-react'
+import { MapPin, Search, Building2, Mail, Phone, Plus, Filter, ChevronDown, ChevronUp, Users, Link2 } from 'lucide-react'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
 import StatCard from '../components/StatCard'
@@ -12,27 +12,35 @@ const RegionalManagers = () => {
   const navigate = useNavigate()
   const [regionalManagers, setRegionalManagers] = useState([])
   const [franchises, setFranchises] = useState([])
+  const [relationshipManagers, setRelationshipManagers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [franchiseFilter, setFranchiseFilter] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [assignFranchiseRM, setAssignFranchiseRM] = useState(null)
+  const [assignFranchiseIds, setAssignFranchiseIds] = useState([])
+  const [assignSaving, setAssignSaving] = useState(false)
 
   const load = async () => {
     setLoading(true)
     try {
-      const [usersRes, franchisesRes] = await Promise.all([
+      const [usersRes, franchisesRes, rmsRes] = await Promise.all([
         api.users.getAll({ role: 'regional_manager', limit: 200 }),
         api.franchises.getAll({ limit: 500 }),
+        api.relationshipManagers.getAll({ limit: 500 }),
       ])
       const users = usersRes?.data || []
       const franchList = Array.isArray(franchisesRes?.data) ? franchisesRes.data : franchisesRes?.franchises || []
+      const rmsList = Array.isArray(rmsRes?.data) ? rmsRes.data : []
       setRegionalManagers(Array.isArray(users) ? users : [])
       setFranchises(franchList)
+      setRelationshipManagers(rmsList)
     } catch (err) {
       setRegionalManagers([])
       setFranchises([])
+      setRelationshipManagers([])
     } finally {
       setLoading(false)
     }
@@ -94,6 +102,93 @@ const RegionalManagers = () => {
     setSearchTerm('')
     setStatusFilter('all')
     setFranchiseFilter('')
+  }
+
+  const openAssignFranchises = (rm) => {
+    const currentIds = getFranchisesForRM(rm._id).map((f) => (f._id || f.id).toString())
+    setAssignFranchiseRM(rm)
+    setAssignFranchiseIds(currentIds)
+  }
+
+  const getRelationshipManagersForRM = (rmId) =>
+    relationshipManagers.filter((r) => r.regionalManager && (r.regionalManager._id || r.regionalManager).toString() === (rmId || '').toString())
+
+  const [assignRelationshipRM, setAssignRelationshipRM] = useState(null)
+  const [assignRelationshipIds, setAssignRelationshipIds] = useState([])
+  const [assignRelationshipSaving, setAssignRelationshipSaving] = useState(false)
+
+  const openAssignRelationships = (rm) => {
+    const currentIds = getRelationshipManagersForRM(rm._id).map((r) => (r._id || r.id).toString())
+    setAssignRelationshipRM(rm)
+    setAssignRelationshipIds(currentIds)
+  }
+
+  const toggleAssignRelationship = (relationshipId) => {
+    const id = (relationshipId || '').toString()
+    setAssignRelationshipIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
+
+  const handleSaveAssignRelationships = async () => {
+    if (!assignRelationshipRM) return
+    setAssignRelationshipSaving(true)
+    try {
+      const rmId = assignRelationshipRM._id.toString()
+      const updates = []
+      for (const r of relationshipManagers) {
+        const rid = (r._id || r.id).toString()
+        const currentRM = r.regionalManager ? (r.regionalManager._id || r.regionalManager).toString() : null
+        const shouldBeAssigned = assignRelationshipIds.includes(rid)
+        if (shouldBeAssigned && currentRM !== rmId) {
+          updates.push(api.relationshipManagers.update(rid, { regionalManager: rmId }))
+        } else if (!shouldBeAssigned && currentRM === rmId) {
+          updates.push(api.relationshipManagers.update(rid, { regionalManager: null }))
+        }
+      }
+      await Promise.all(updates)
+      toast.success('Success', 'Relationship manager assignments updated successfully')
+      setAssignRelationshipRM(null)
+      load()
+    } catch (err) {
+      toast.error('Error', err.message || 'Failed to update relationship manager assignments')
+    } finally {
+      setAssignRelationshipSaving(false)
+    }
+  }
+
+  const toggleAssignFranchise = (franchiseId) => {
+    const id = (franchiseId || '').toString()
+    setAssignFranchiseIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
+
+  const handleSaveAssignFranchises = async () => {
+    if (!assignFranchiseRM) return
+    setAssignSaving(true)
+    try {
+      const rmId = assignFranchiseRM._id.toString()
+      const updates = []
+      for (const f of franchises) {
+        const fid = (f._id || f.id).toString()
+        const currentRM = f.regionalManager ? (f.regionalManager._id || f.regionalManager).toString() : null
+        const shouldBeAssigned = assignFranchiseIds.includes(fid)
+        if (shouldBeAssigned && currentRM !== rmId) {
+          updates.push(api.franchises.update(fid, { regionalManager: rmId }))
+        } else if (!shouldBeAssigned && currentRM === rmId) {
+          updates.push(api.franchises.update(fid, { regionalManager: null }))
+        }
+      }
+      await Promise.all(updates)
+      toast.success('Success', 'Franchise assignments updated successfully')
+      setAssignFranchiseRM(null)
+      load()
+    } catch (err) {
+      toast.error('Error', err.message || 'Failed to update franchise assignments')
+    } finally {
+      setAssignSaving(false)
+    }
   }
 
   return (
@@ -201,6 +296,7 @@ const RegionalManagers = () => {
         <div className="grid gap-4">
           {filtered.map((rm) => {
             const rmFranchises = getFranchisesForRM(rm._id)
+            const rmRelationships = getRelationshipManagersForRM(rm._id)
             return (
               <div
                 key={rm._id}
@@ -242,11 +338,46 @@ const RegionalManagers = () => {
                       ) : (
                         <p className="text-sm text-gray-500 mt-1 pl-6">No franchises assigned</p>
                       )}
+                      <div className="mt-4">
+                        <h3 className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                          <Users className="w-4 h-4" />
+                          Assigned Relationship Managers ({rmRelationships.length})
+                        </h3>
+                        {rmRelationships.length > 0 ? (
+                          <ul className="mt-2 space-y-1">
+                            {rmRelationships.map((r) => (
+                              <li key={r._id} className="text-sm text-gray-600 pl-6">
+                                {r.name} {r.email ? `• ${r.email}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-gray-500 mt-1 pl-6">No relationship managers assigned</p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${rm.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                    {rm.status || 'N/A'}
-                  </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openAssignFranchises(rm)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg border border-primary-200"
+                    >
+                      <Link2 className="w-4 h-4" />
+                      Assign franchises
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openAssignRelationships(rm)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg border border-primary-200"
+                    >
+                      <Users className="w-4 h-4" />
+                      Assign Relationship M
+                    </button>
+                    <span className={`px-2 py-1 text-xs rounded-full ${rm.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {rm.status || 'N/A'}
+                    </span>
+                  </div>
                 </div>
               </div>
             )
@@ -262,6 +393,145 @@ const RegionalManagers = () => {
           onSave={handleCreateRM}
           onClose={() => setIsCreateModalOpen(false)}
         />
+      </Modal>
+
+      <Modal
+        isOpen={!!assignFranchiseRM}
+        onClose={() => !assignSaving && setAssignFranchiseRM(null)}
+        title={assignFranchiseRM ? `Assign franchises — ${assignFranchiseRM.name || 'Regional Manager'}` : 'Assign franchises'}
+        size="md"
+      >
+        {assignFranchiseRM && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Select the franchises to assign to this regional manager. Uncheck to unassign.
+            </p>
+            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+              {franchises.length === 0 ? (
+                <p className="p-4 text-sm text-gray-500">No franchises available</p>
+              ) : (
+                franchises
+                  .filter((f) => {
+                    // only show franchises that are unassigned or already assigned to this RM
+                    const fid = f._id || f.id
+                    const currentRM = f.regionalManager ? (f.regionalManager._id || f.regionalManager).toString() : null
+                    const targetRM = assignFranchiseRM ? (assignFranchiseRM._id || assignFranchiseRM.id).toString() : null
+                    return !currentRM || currentRM === targetRM
+                  })
+                  .map((f) => {
+                    const fid = (f._id || f.id).toString()
+                    const checked = assignFranchiseIds.includes(fid)
+                    return (
+                      <label
+                        key={fid}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAssignFranchise(fid)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="text-sm font-medium text-gray-900">{f.name || 'Unnamed'}</span>
+                        {f.address && (
+                          <span className="text-xs text-gray-500 truncate">
+                            {typeof f.address === 'object' ? (f.address.city || f.address.line1 || '') : f.address}
+                          </span>
+                        )}
+                      </label>
+                    )
+                  })
+              )}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleSaveAssignFranchises}
+                disabled={assignSaving}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+              >
+                {assignSaving ? 'Saving...' : 'Save assignments'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssignFranchiseRM(null)}
+                disabled={assignSaving}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!assignRelationshipRM}
+        onClose={() => !assignRelationshipSaving && setAssignRelationshipRM(null)}
+        title={assignRelationshipRM ? `Assign relationship managers — ${assignRelationshipRM.name || 'Regional Manager'}` : 'Assign relationship managers'}
+        size="md"
+      >
+        {assignRelationshipRM && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Select the relationship managers to assign to this regional manager. Uncheck to unassign.
+            </p>
+            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+              {relationshipManagers.length === 0 ? (
+                <p className="p-4 text-sm text-gray-500">No relationship managers available</p>
+              ) : (
+                relationshipManagers
+                  .filter((r) => {
+                    const rid = r._id || r.id
+                    const currentRM = r.regionalManager ? (r.regionalManager._id || r.regionalManager).toString() : null
+                    const targetRM = assignRelationshipRM ? (assignRelationshipRM._id || assignRelationshipRM.id).toString() : null
+                    return !currentRM || currentRM === targetRM
+                  })
+                  .map((r) => {
+                    const rid = (r._id || r.id).toString()
+                    const checked = assignRelationshipIds.includes(rid)
+                    return (
+                      <label
+                        key={rid}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAssignRelationship(rid)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="text-sm font-medium text-gray-900">{r.name || 'Unnamed'}</span>
+                        {r.email && (
+                          <span className="text-xs text-gray-500 truncate">
+                            {r.email}
+                          </span>
+                        )}
+                      </label>
+                    )
+                  })
+              )}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleSaveAssignRelationships}
+                disabled={assignRelationshipSaving}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+              >
+                {assignRelationshipSaving ? 'Saving...' : 'Save assignments'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssignRelationshipRM(null)}
+                disabled={assignRelationshipSaving}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

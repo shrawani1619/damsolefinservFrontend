@@ -48,10 +48,18 @@ const Leads = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
-        // Remove leadType, contact, caseNumber, and verificationStatus columns if they exist in saved config
-        const filtered = parsed.filter(col => col.key !== 'leadType' && col.key !== 'contact' && col.key !== 'caseNumber' && col.key !== 'verificationStatus')
+        // Remove leadType, contact, caseNumber, verificationStatus and sanctionedAmount columns if they exist in saved config
+        const filtered = parsed.filter(col => col.key !== 'leadType' && col.key !== 'contact' && col.key !== 'caseNumber' && col.key !== 'verificationStatus' && col.key !== 'sanctionedAmount')
         // Update codeUse label to 'DSA Code' if it exists
         const updated = filtered.map(col => {
+          // Normalize legacy 'franchise' column to 'associated'
+          if (col.key === 'franchise') {
+            return { ...col, key: 'associated', label: 'Associated' }
+          }
+          // If label mentions Franchise, rename to Associated
+          if (typeof col.label === 'string' && col.label.toLowerCase().includes('franchise')) {
+            return { ...col, label: col.label.replace(/franchise/ig, 'Associated') }
+          }
           if (col.key === 'codeUse') {
             return { ...col, label: 'DSA Code' }
           }
@@ -66,11 +74,10 @@ const Leads = () => {
       { key: 'customerName', label: 'Customer Name', visible: true, sortable: true },
       { key: 'loanType', label: 'Loan Type', visible: true, sortable: true },
       { key: 'loanAmount', label: 'Loan Amount', visible: true, sortable: true },
-      { key: 'sanctionedAmount', label: 'Sanctioned Amount', visible: true, sortable: true },
       { key: 'disbursedAmount', label: 'Disbursed Amount', visible: true, sortable: true },
       { key: 'status', label: 'Status', visible: true, sortable: true },
       { key: 'agent', label: 'Agent', visible: true, sortable: false },
-      { key: 'franchise', label: 'Franchise', visible: true, sortable: false },
+      { key: 'associated', label: 'Associated', visible: true, sortable: false },
       { key: 'bank', label: 'Bank', visible: true, sortable: false },
       { key: 'smBm', label: 'SM/BM', visible: true, sortable: false },
       { key: 'asm', label: 'ASM', visible: true, sortable: false },
@@ -88,14 +95,20 @@ const Leads = () => {
   useEffect(() => {
     // Filter out leadType, contact, caseNumber, and verificationStatus columns before saving
     const filteredConfig = columnConfig.filter(col => col.key !== 'leadType' && col.key !== 'contact' && col.key !== 'caseNumber' && col.key !== 'verificationStatus')
-    // Ensure codeUse label is 'DSA Code'
-    const updatedConfig = filteredConfig.map(col => {
+    // Normalize any legacy 'franchise' keys and labels, and ensure codeUse label is 'DSA Code'
+    const normalized = filteredConfig.map(col => {
+      if (col.key === 'franchise') {
+        return { ...col, key: 'associated', label: 'Associated' }
+      }
+      if (typeof col.label === 'string' && col.label.toLowerCase().includes('franchise')) {
+        return { ...col, label: col.label.replace(/franchise/ig, 'Associated') }
+      }
       if (col.key === 'codeUse') {
         return { ...col, label: 'DSA Code' }
       }
       return col
     })
-    localStorage.setItem('leadsColumnConfig', JSON.stringify(updatedConfig))
+    localStorage.setItem('leadsColumnConfig', JSON.stringify(normalized))
   }, [columnConfig])
 
   useEffect(() => {
@@ -105,8 +118,11 @@ const Leads = () => {
     }
     fetchBanks()
     fetchStaff()
-    fetchFranchises()
-  }, [isAgent])
+    // Relationship managers are not allowed to view franchises — don't request franchises for them
+    if (userRole !== 'relationship_manager') {
+      fetchFranchises()
+    }
+  }, [isAgent, userRole])
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -223,7 +239,7 @@ const Leads = () => {
       if (!matchesStatus) return false
 
       if (franchiseFilter) {
-        const fid = lead.franchise?._id || lead.franchise?.id || lead.franchise
+        const fid = lead.associated?._id || lead.associated?.id || lead.associated
         if (!fid || (fid !== franchiseFilter && fid.toString() !== franchiseFilter)) return false
       }
       if (agentFilter) {
@@ -366,14 +382,13 @@ const Leads = () => {
   const formatFieldName = (field) => {
     const fieldMap = {
       'agent': 'Agent',
-      'franchise': 'Franchise',
+      'associated': 'Associated',
       'bank': 'Bank',
       'smBm': 'SM/BM',
       'applicantMobile': 'Mobile',
       'applicantEmail': 'Email',
       'loanType': 'Loan Type',
       'loanAmount': 'Loan Amount',
-      'sanctionedAmount': 'Sanctioned Amount',
       'disbursedAmount': 'Disbursed Amount',
       'status': 'Status',
       'disbursementDate': 'Disbursement Date',
@@ -415,7 +430,7 @@ const Leads = () => {
         const bank = banks.find(b => (b._id || b.id) === value)
         return bank ? bank.name : value.substring(0, 8) + '...'
       }
-      if (fieldName === 'franchise') {
+      if (fieldName === 'associated') {
         const franchise = franchises.find(f => (f._id || f.id) === value)
         return franchise ? franchise.name : value.substring(0, 8) + '...'
       }
@@ -452,7 +467,7 @@ const Leads = () => {
   }
 
   const handleSave = async (formData) => {
-    try {
+        try {
       // Validate required fields (only fields with red asterisk)
       if (!formData.loanType) {
         toast.error('Error', 'Loan type is required')
@@ -475,11 +490,12 @@ const Leads = () => {
         loanType: formData.loanType,
         loanAmount: parseFloat(formData.loanAmount),
         status: formData.status || 'logged',
-        agent: formData.agentId,
-        franchise: formData.franchiseId,
+        agent: formData.agentId || formData.agent || undefined,
+        // Support both shapes: payload may include `associated` (from LeadForm) or `associatedId`
+        associated: formData.associated || formData.associatedId || formData.franchiseId || undefined,
+        associatedModel: formData.associatedModel || (formData.franchiseId ? 'Franchise' : undefined),
         bank: formData.bankId,
         customerName: formData.customerName?.trim() || undefined,
-        sanctionedAmount: formData.sanctionedAmount ? parseFloat(formData.sanctionedAmount) : undefined,
         sanctionedDate: formData.sanctionedDate || undefined,
         disbursedAmount: formData.disbursedAmount ? parseFloat(formData.disbursedAmount) : undefined,
         disbursementDate: formData.disbursementDate || undefined,
@@ -649,6 +665,38 @@ const Leads = () => {
     return franchise ? (franchise.name || 'N/A') : 'N/A'
   }
 
+  // Determine the associated name for a lead (RelationshipManager via agent OR franchise)
+  const getAssociatedName = (lead) => {
+    if (!lead) return 'N/A'
+    // Prefer populated associated object
+    if (lead.associated && typeof lead.associated === 'object' && lead.associated.name) {
+      return lead.associated.name
+    }
+    // If agent is populated, prefer the agent's manager
+    if (lead.agent && typeof lead.agent === 'object') {
+      const agent = lead.agent
+      if (agent.managedByModel === 'RelationshipManager') {
+        return agent.managedBy?.name || 'N/A'
+      }
+      if (agent.managedByModel === 'Franchise') {
+        return agent.managedBy?.name || 'N/A'
+      }
+    }
+
+    // If agent is just an ID, try to resolve from agents list
+    const agentId = lead.agentId || (lead.agent && (lead.agent._id || lead.agent.id)) || lead.agent
+    if (agentId) {
+      const agentObj = agents.find(a => (a._id || a.id) === agentId || (a._id || a.id)?.toString() === agentId?.toString())
+      if (agentObj) {
+        if (agentObj.managedByModel === 'RelationshipManager') return agentObj.managedBy?.name || 'N/A'
+        if (agentObj.managedByModel === 'Franchise') return agentObj.managedBy?.name || 'N/A'
+      }
+    }
+
+    // Fallback to populated associated name or N/A
+    return lead.associated?.name || 'N/A'
+  }
+
   const getStaffName = (staffIdOrObject) => {
     if (!staffIdOrObject) return 'N/A'
 
@@ -707,7 +755,35 @@ const Leads = () => {
     ))
   }
 
-  const visibleColumns = columnConfig.filter(col => col.visible)
+  const visibleColumns = columnConfig.filter(col => {
+    if (!col.visible) return false
+
+    const key = (col.key || '').toString().toLowerCase()
+    const label = (col.label || '').toString().toLowerCase()
+
+    // Hide Associated column for Relationship Managers and Franchise users
+    if ((userRole === 'relationship_manager' || userRole === 'franchise') && (key === 'associated' || key === 'franchise' || label.includes('associated') || label.includes('franchise'))) {
+      return false
+    }
+
+    // Agents have a more restrictive view: hide franchise/associated/agent/sanctioned info
+    if (isAgent) {
+      if (
+        key === 'associated' ||
+        key === 'franchise' ||
+        key === 'agent' ||
+        key === 'sanctionedamount' ||
+        label.includes('franchise') ||
+        label.includes('associated') ||
+        label.includes('agent') ||
+        label.includes('sanction')
+      ) {
+        return false
+      }
+    }
+
+    return true
+  })
 
   const statusOptions = [
     { value: 'all', label: 'All Status' },
@@ -730,26 +806,33 @@ const Leads = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              const rows = sortedLeads.map((lead) => ({
-                'Customer Name': lead.customerName || 'N/A',
-                'Loan Type': lead.loanType?.replace(/_/g, ' ') || 'N/A',
-                'Loan Amount': lead.loanAmount ?? '',
-                'Sanctioned Amount': lead.sanctionedAmount ?? '',
-                'Disbursed Amount': lead.disbursedAmount ?? '',
-                Status: lead.status || 'N/A',
-                Agent: lead.agent?.name || getAgentName(lead.agentId || lead.agent) || 'N/A',
-                Franchise: lead.franchise?.name || getFranchiseName(lead.franchiseId || lead.franchise) || 'N/A',
-                Bank: lead.bank?.name || getBankName(lead.bankId || lead.bank) || 'N/A',
-                'SM/BM': lead.smBm?.name || getStaffName(lead.smBmId || lead.smBm) || 'N/A',
-                ASM: lead.asmName || 'N/A',
-                Branch: lead.branch || 'N/A',
-                'Loan Account No': lead.loanAccountNo || 'N/A',
-                'Disbursement Date': lead.disbursementDate ? new Date(lead.disbursementDate).toLocaleDateString() : 'N/A',
-                'Sanctioned Date': lead.sanctionedDate ? new Date(lead.sanctionedDate).toLocaleDateString() : 'N/A',
-                'DSA Code': lead.dsaCode || lead.codeUse || 'N/A',
-                Remarks: lead.remarks || 'N/A',
-                Created: lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A',
-              }))
+              const rows = sortedLeads.map((lead) => {
+                const base = {
+                  'Customer Name': lead.customerName || 'N/A',
+                  'Loan Type': lead.loanType?.replace(/_/g, ' ') || 'N/A',
+                  'Loan Amount': lead.loanAmount ?? '',
+                  'Disbursed Amount': lead.disbursedAmount ?? '',
+                  Status: lead.status || 'N/A',
+                  Bank: lead.bank?.name || getBankName(lead.bankId || lead.bank) || 'N/A',
+                  'SM/BM': lead.smBm?.name || getStaffName(lead.smBmId || lead.smBm) || 'N/A',
+                  ASM: lead.asmName || 'N/A',
+                  Branch: lead.branch || 'N/A',
+                  'Loan Account No': lead.loanAccountNo || 'N/A',
+                  'Disbursement Date': lead.disbursementDate ? new Date(lead.disbursementDate).toLocaleDateString() : 'N/A',
+                  'Sanctioned Date': lead.sanctionedDate ? new Date(lead.sanctionedDate).toLocaleDateString() : 'N/A',
+                  'DSA Code': lead.dsaCode || lead.codeUse || 'N/A',
+                  Remarks: lead.remarks || 'N/A',
+                  Created: lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A',
+                }
+                // Do not include Associated column for Relationship Managers or Franchise users
+                if (!isAgent && userRole !== 'relationship_manager' && userRole !== 'franchise') {
+                  base.Associated = getAssociatedName(lead)
+                }
+                if (!isAgent) {
+                  base.Agent = lead.agent?.name || getAgentName(lead.agentId || lead.agent) || 'N/A'
+                }
+                return base
+              })
               exportToExcel(rows, `leads_export_${Date.now()}`, 'Leads')
               toast.success('Export', `Exported ${rows.length} leads to Excel`)
             }}
@@ -774,7 +857,19 @@ const Leads = () => {
                 <div className="mb-3 font-semibold text-gray-900">Column Settings</div>
                 <div className="text-xs text-gray-500 mb-3">Use arrows to reorder, checkbox to toggle visibility</div>
                 <div className="space-y-1 mb-4">
-                  {columnConfig.map((col, index) => (
+                  {columnConfig
+                    .filter(col => {
+                      // Hide associated/franchise column from column settings for Relationship Managers and Franchise users
+                      if ((userRole === 'relationship_manager' || userRole === 'franchise')) {
+                        const k = (col.key || '').toString().toLowerCase()
+                        const lbl = (col.label || '').toString().toLowerCase()
+                        if (k === 'associated' || k === 'franchise' || lbl.includes('associated') || lbl.includes('franchise')) {
+                          return false
+                        }
+                      }
+                      return true
+                    })
+                    .map((col, index) => (
                     <div key={col.key} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
                       <div className="flex flex-col gap-0.5">
                         <button
@@ -872,13 +967,13 @@ const Leads = () => {
               {!isAgent && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Franchise</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Associated</label>
                     <select
                       value={franchiseFilter}
                       onChange={(e) => setFranchiseFilter(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
                     >
-                      <option value="">All franchises</option>
+                      <option value="">All Associated</option>
                       {franchises.map((f) => (
                         <option key={f._id || f.id} value={f._id || f.id}>{f.name || 'Unnamed'}</option>
                       ))}
@@ -1054,8 +1149,7 @@ const Leads = () => {
                         return <div className="text-sm text-gray-900">{lead.loanType?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'}</div>
                       case 'loanAmount':
                         return <div className="text-sm font-medium text-gray-900">₹{(lead.loanAmount || 0).toLocaleString()}</div>
-                      case 'sanctionedAmount':
-                        return <div className="text-sm text-gray-900">₹{(lead.sanctionedAmount || 0).toLocaleString()}</div>
+                      // 'sanctionedAmount' column removed
                       case 'disbursedAmount':
                         return <div className="text-sm text-gray-900">₹{(lead.disbursedAmount || 0).toLocaleString()}</div>
                       case 'status':
@@ -1072,16 +1166,8 @@ const Leads = () => {
                             })()}
                           </div>
                         )
-                      case 'franchise':
-                        return <div className="text-sm text-gray-900">
-                          {(() => {
-                            if (lead.franchise && typeof lead.franchise === 'object' && lead.franchise.name) {
-                              return lead.franchise.name
-                            }
-                            const franchiseId = lead.franchiseId || (lead.franchise && (lead.franchise._id || lead.franchise.id)) || lead.franchise
-                            return getFranchiseName(franchiseId)
-                          })()}
-                        </div>
+                      case 'associated':
+                        return <div className="text-sm text-gray-900">{getAssociatedName(lead)}</div>
                       case 'bank':
                         return (
                           <div className="relative" data-expandable>
@@ -1498,16 +1584,8 @@ const Leads = () => {
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Franchise</label>
-                <p className="mt-1 text-sm text-gray-900">
-                  {(() => {
-                    if (selectedLead.franchise && typeof selectedLead.franchise === 'object' && selectedLead.franchise.name) {
-                      return selectedLead.franchise.name
-                    }
-                    const franchiseId = selectedLead.franchiseId || (selectedLead.franchise && (selectedLead.franchise._id || selectedLead.franchise.id)) || selectedLead.franchise
-                    return getFranchiseName(franchiseId)
-                  })()}
-                </p>
+                <label className="text-sm font-medium text-gray-500">Associated</label>
+                <p className="mt-1 text-sm text-gray-900">{getAssociatedName(selectedLead)}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Bank</label>

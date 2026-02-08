@@ -12,11 +12,13 @@ import Agents from './pages/Agents'
 import Staff from './pages/Staff'
 import Banks from './pages/Banks'
 import Franchises from './pages/Franchises'
+import RelationshipManagers from './pages/RelationshipManagers'
 import Invoices from './pages/Invoices'
 import Payouts from './pages/Payouts'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
 import RegionalManagers from './pages/RegionalManagers'
+import BankManagers from './pages/BankManagers'
 
 function App() {
   const [notifications, setNotifications] = useState([])
@@ -57,7 +59,9 @@ function App() {
           <Route path="staff" element={<Staff />} />
           <Route path="banks" element={<Banks />} />
           <Route path="franchises" element={<Franchises />} />
+          <Route path="relationship-managers" element={<RelationshipManagers />} />
           <Route path="regional-managers" element={<RegionalManagers />} />
+          <Route path="bank-managers" element={<BankManagers />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="payouts" element={<Payouts />} />
           <Route path="settings" element={<Settings />} />

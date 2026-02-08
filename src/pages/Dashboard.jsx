@@ -69,6 +69,9 @@ const Dashboard = () => {
             break
         }
       } catch (roleError) {
+        if (userRole === 'relationship_manager' || userRole === 'accounts_manager' || userRole === 'agent' || userRole === 'franchise') {
+          throw roleError
+        }
         console.warn('Role-specific dashboard failed, trying admin:', roleError)
         dashboardData = await api.dashboard.getAdminDashboard(params)
       }
@@ -125,7 +128,7 @@ const Dashboard = () => {
           relationshipManagers: Array.isArray(data.relationshipManagers) ? data.relationshipManagers : [],
         })
       }
-      if (userRole === 'super_admin' || userRole === 'regional_manager' || userRole === 'franchise') {
+      if (userRole === 'super_admin' || userRole === 'regional_manager' || userRole === 'relationship_manager' || userRole === 'franchise') {
         setLoanDistribution(Array.isArray(data.loanDistribution) ? data.loanDistribution : [])
         setLeadConversionFunnel(Array.isArray(data.leadConversionFunnel) ? data.leadConversionFunnel : [])
         setSelectedLoanSegmentIndex(null)
@@ -400,8 +403,8 @@ const Dashboard = () => {
             />
           </div>
 
-          {/* Loan Distribution & Lead Conversion Funnel - Admin & Franchise Owner */}
-          {(authService.getUser()?.role === 'super_admin' || authService.getUser()?.role === 'regional_manager' || authService.getUser()?.role === 'franchise') && (
+          {/* Loan Distribution & Lead Conversion Funnel - Admin, Regional Manager, Relationship Manager & Franchise Owner */}
+          {(authService.getUser()?.role === 'super_admin' || authService.getUser()?.role === 'regional_manager' || authService.getUser()?.role === 'relationship_manager' || authService.getUser()?.role === 'franchise') && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h2 className="text-lg font-bold text-gray-900 mb-4">Loan Distribution</h2>

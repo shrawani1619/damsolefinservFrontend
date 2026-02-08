@@ -7,6 +7,7 @@ import {
   Users,
   UserCheck,
   Building2,
+  Landmark,
   Store,
   FileText,
   CreditCard,
@@ -33,11 +34,12 @@ const Sidebar = ({ onMinimizeChange }) => {
   const allMenuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
     { icon: MapPin, label: 'Regional Manager', path: '/regional-managers', roles: ['super_admin'] },
-    { icon: Store, label: 'Franchises', path: '/franchises', roles: ['super_admin', 'regional_manager', 'relationship_manager'] },
-    { icon: Users, label: 'Relationship Manager', path: '/staff', roles: ['super_admin', 'regional_manager', 'relationship_manager'] },
+    { icon: Store, label: 'Franchises', path: '/franchises', roles: ['super_admin', 'regional_manager'] },
+    { icon: Users, label: 'Relationship Managers', path: '/relationship-managers', roles: ['super_admin', 'regional_manager'] },
     { icon: UserCheck, label: 'Agents', path: '/agents', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise'] },
     { icon: Users, label: 'Leads', path: '/leads', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent'] },
     { icon: Building2, label: 'Banks', path: '/banks', roles: ['super_admin', 'regional_manager', 'relationship_manager'] },
+    { icon: Landmark, label: 'Bank Managers', path: '/bank-managers', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise'] },
     { icon: FileText, label: 'Invoices', path: '/invoices', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
     { icon: CreditCard, label: 'Payouts', path: '/payouts', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
   ]

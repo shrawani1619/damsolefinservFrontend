@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { authService } from '../services/auth.service'
 import { api } from '../services/api'
 
-const FranchiseForm = ({ franchise, onSave, onClose }) => {
-  const isCreate = !franchise
+const RelationshipManagerForm = ({ relationshipManager, onSave, onClose }) => {
+  const isCreate = !relationshipManager
   const isAdmin = authService.getUser()?.role === 'super_admin'
-  const canAssignRM = ['super_admin', 'regional_manager'].includes(authService.getUser()?.role)
   const [regionalManagers, setRegionalManagers] = useState([])
+  const [allRelationshipManagers, setAllRelationshipManagers] = useState([])
+  const [filteredRegionalManagers, setFilteredRegionalManagers] = useState([])
   const [formData, setFormData] = useState({
     name: '',
     ownerName: '',
@@ -15,7 +16,6 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
     password: '',
     status: 'active',
     regionalManager: '',
-    relationshipManager: '',
     address: {
       street: '',
       city: '',
@@ -28,40 +28,62 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
 
   useEffect(() => {
     if (isAdmin) {
-      api.users.getAll({ role: 'regional_manager', limit: 200 }).then((res) => {
-        setRegionalManagers(res.data || [])
-      }).catch(() => setRegionalManagers([]))
+      Promise.all([
+        api.users.getAll({ role: 'regional_manager', limit: 200 }),
+        api.relationshipManagers.getAll({ limit: 500 }),
+      ])
+        .then(([usersRes, rmsRes]) => {
+          setRegionalManagers(usersRes.data || [])
+          setAllRelationshipManagers(Array.isArray(rmsRes?.data) ? rmsRes.data : [])
+        })
+        .catch(() => {
+          setRegionalManagers([])
+          setAllRelationshipManagers([])
+        })
     }
   }, [isAdmin])
 
   useEffect(() => {
-    // Relationship managers are not linked to franchises per updated hierarchy.
-  }, [canAssignRM])
-
-  useEffect(() => {
-    if (franchise) {
+    if (relationshipManager) {
       setFormData({
-        name: franchise.name || '',
-        ownerName: franchise.ownerName || '',
-        email: franchise.email || '',
-        mobile: franchise.mobile || '',
+        name: relationshipManager.name || '',
+        ownerName: relationshipManager.ownerName || '',
+        email: relationshipManager.email || '',
+        mobile: relationshipManager.mobile || '',
         password: '',
-        status: franchise.status || 'active',
-        regionalManager: franchise.regionalManager?._id || franchise.regionalManager || '',
-        relationshipManager: '',
+        status: relationshipManager.status || 'active',
+        regionalManager: relationshipManager.regionalManager?._id || relationshipManager.regionalManager || '',
         address: {
-          street: franchise.address?.street || '',
-          city: franchise.address?.city || '',
-          state: franchise.address?.state || '',
-          pincode: franchise.address?.pincode || '',
+          street: relationshipManager.address?.street || '',
+          city: relationshipManager.address?.city || '',
+          state: relationshipManager.address?.state || '',
+          pincode: relationshipManager.address?.pincode || '',
         },
       })
     }
-  }, [franchise])
+  }, [relationshipManager])
+
+  // Compute filtered list of regional managers: only show RMs that are not already assigned
+  // to another relationship manager, except allow the one currently assigned to the RM being edited.
+  useEffect(() => {
+    if (!isAdmin) return
+    const assignedRMIds = allRelationshipManagers
+      .map((r) => (r.regionalManager ? (r.regionalManager._id || r.regionalManager).toString() : null))
+      .filter(Boolean)
+    const currentAssigned = relationshipManager ? (relationshipManager.regionalManager?._id || relationshipManager.regionalManager || '') : ''
+    const allowed = regionalManagers.filter((rmUser) => {
+      const id = rmUser._id || rmUser.id
+      if (!id) return false
+      const idStr = id.toString()
+      // allow if not assigned or it's the current assigned RM for this relationship manager
+      return !assignedRMIds.includes(idStr) || idStr === (currentAssigned ? currentAssigned.toString() : '')
+    })
+    setFilteredRegionalManagers(allowed)
+  }, [regionalManagers, allRelationshipManagers, relationshipManager, isAdmin])
 
   const validate = () => {
     const newErrors = {}
-    if (!formData.name.trim()) newErrors.name = 'Franchise name is required'
+    if (!formData.name.trim()) newErrors.name = 'Relationship manager name is required'
     if (!formData.ownerName.trim()) newErrors.ownerName = 'Owner name is required'
     if (isCreate) {
       if (!formData.email?.trim()) newErrors.email = 'Email is required for login'
@@ -95,7 +117,6 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
       ...prev,
       [name]: value,
     }))
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }))
     }
@@ -105,16 +126,15 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Franchise Name <span className="text-red-500">*</span>
+          Relationship Manager Name <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           name="name"
           value={formData.name}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.name ? 'border-red-500' : 'border-gray-300'
-            }`}
-          placeholder="Enter franchise name"
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.name ? 'border-red-500' : 'border-gray-300'}`}
+          placeholder="Enter relationship manager name"
         />
         {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
       </div>
@@ -128,8 +148,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           name="ownerName"
           value={formData.ownerName}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.ownerName ? 'border-red-500' : 'border-gray-300'
-            }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.ownerName ? 'border-red-500' : 'border-gray-300'}`}
           placeholder="Enter owner name"
         />
         {errors.ownerName && <p className="mt-1 text-sm text-red-600">{errors.ownerName}</p>}
@@ -144,8 +163,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           name="email"
           value={formData.email}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.email ? 'border-red-500' : 'border-gray-300'
-            }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
           placeholder="Owner login email"
         />
         {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
@@ -160,37 +178,31 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           name="mobile"
           value={formData.mobile}
           onChange={handleChange}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.mobile ? 'border-red-500' : 'border-gray-300'
-            }`}
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.mobile ? 'border-red-500' : 'border-gray-300'}`}
           placeholder="Owner mobile number"
         />
         {errors.mobile && <p className="mt-1 text-sm text-red-600">{errors.mobile}</p>}
       </div>
 
       {isCreate && (
-        <>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Owner Login Password <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
-                }`}
-              placeholder="Min 6 characters"
-            />
-            {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
-          </div>
-        </>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Owner Login Password <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="Min 6 characters"
+          />
+          {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+        </div>
       )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Street Address
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
         <input
           type="text"
           name="address.street"
@@ -206,9 +218,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            City
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
           <input
             type="text"
             name="address.city"
@@ -222,9 +232,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            State
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
           <input
             type="text"
             name="address.state"
@@ -240,9 +248,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Pincode
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
         <input
           type="text"
           name="address.pincode"
@@ -273,9 +279,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
 
       {isAdmin && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Regional Manager
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Regional Manager</label>
           <select
             name="regionalManager"
             value={formData.regionalManager}
@@ -283,7 +287,7 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">None</option>
-            {regionalManagers.map((rm) => (
+            {filteredRegionalManagers.map((rm) => (
               <option key={rm._id} value={rm._id}>
                 {rm.name} {rm.email ? `(${rm.email})` : ''}
               </option>
@@ -291,8 +295,6 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           </select>
         </div>
       )}
-
-      {/* Relationship managers are not assignable to franchises in the updated hierarchy */}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <button
@@ -306,11 +308,11 @@ const FranchiseForm = ({ franchise, onSave, onClose }) => {
           type="submit"
           className="px-4 py-2 text-sm font-medium text-white bg-primary-900 rounded-lg hover:bg-primary-800 transition-colors"
         >
-          {franchise ? 'Update Franchise' : 'Create Franchise'}
+          {relationshipManager ? 'Update Relationship Manager' : 'Create Relationship Manager'}
         </button>
       </div>
     </form>
   )
 }
 
-export default FranchiseForm
+export default RelationshipManagerForm

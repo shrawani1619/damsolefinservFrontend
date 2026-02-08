@@ -323,6 +323,30 @@ export const api = {
     delete: (id) => apiRequest(`/payouts/${id}`, { method: 'DELETE' }),
   },
 
+  // Relationship Managers endpoints
+  relationshipManagers: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return apiRequest(`/relationship-managers${queryString ? `?${queryString}` : ''}`);
+    },
+    getById: (id) => apiRequest(`/relationship-managers/${id}`),
+    create: (data) => apiRequest('/relationship-managers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id, data) => apiRequest(`/relationship-managers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    updateStatus: (id, status) => apiRequest(`/relationship-managers/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+    delete: (id) => apiRequest(`/relationship-managers/${id}`, { method: 'DELETE' }),
+    getFranchises: (id) => apiRequest(`/relationship-managers/${id}/franchises`),
+    getPerformance: (id) => apiRequest(`/relationship-managers/${id}/performance`),
+  },
+
   // Franchises endpoints
   franchises: {
     getAll: (params = {}) => {
@@ -409,6 +433,28 @@ export const api = {
       const queryString = new URLSearchParams(params).toString();
       return apiRequest(`/dashboard/franchise${queryString ? `?${queryString}` : ''}`);
     },
+  },
+
+  // Bank Managers endpoints
+  bankManagers: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return apiRequest(`/bank-managers${queryString ? `?${queryString}` : ''}`);
+    },
+    getById: (id) => apiRequest(`/bank-managers/${id}`),
+    create: (data) => apiRequest('/bank-managers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id, data) => apiRequest(`/bank-managers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    updateStatus: (id, status) => apiRequest(`/bank-managers/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+    delete: (id) => apiRequest(`/bank-managers/${id}`, { method: 'DELETE' }),
   },
 
   // Notifications endpoints

@@ -280,6 +280,23 @@ const Payouts = () => {
     return agent ? agent.name : 'N/A'
   }
 
+  const getAssociatedForPayout = (p) => {
+    if (!p) return 'N/A'
+    if (p.agent && typeof p.agent === 'object') {
+      if (p.agent.managedByModel === 'RelationshipManager') return p.agent.managedBy?.name || 'N/A'
+      if (p.agent.managedByModel === 'Franchise') return p.agent.managedBy?.name || p.franchise?.name || 'N/A'
+    }
+    const agentId = p.agent?._id || p.agent?.id || p.agent
+    if (agentId) {
+      const agentObj = agents.find(a => (a._id || a.id) === agentId || (a._id || a.id)?.toString() === agentId?.toString())
+      if (agentObj) {
+        if (agentObj.managedByModel === 'RelationshipManager') return agentObj.managedBy?.name || 'N/A'
+        if (agentObj.managedByModel === 'Franchise') return agentObj.managedBy?.name || p.franchise?.name || 'N/A'
+      }
+    }
+    return p.franchise?.name || 'N/A'
+  }
+
   const statusOptions = [
     { value: 'all', label: 'All Status' },
     { value: 'completed', label: 'Completed' },
@@ -301,7 +318,7 @@ const Payouts = () => {
               const rows = sortedPayouts.map((p) => ({
                 'Payout Number': p.payoutNumber || 'N/A',
                 Agent: p.agent?.name || getAgentName(p.agentId || p.agent) || 'N/A',
-                Franchise: p.franchise?.name || 'N/A',
+                Associated: getAssociatedForPayout(p),
                 'Total Amount': p.totalAmount ?? '',
                 'TDS Amount': p.tdsAmount ?? '',
                 'Net Payable': p.netPayable ?? '',
@@ -395,7 +412,7 @@ const Payouts = () => {
               {!isAgent && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Franchise</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Associated</label>
                     <select value={franchiseFilter} onChange={(e) => setFranchiseFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
                       <option value="">All franchises</option>
                       {franchises.map((f) => <option key={f._id || f.id} value={f._id || f.id}>{f.name || 'Unnamed'}</option>)}

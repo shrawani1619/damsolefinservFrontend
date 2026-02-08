@@ -278,6 +278,23 @@ const Invoices = () => {
     return lead ? (lead.loanAccountNo || 'N/A') : 'N/A'
   }
 
+  const getAssociatedForInvoice = (inv) => {
+    if (!inv) return 'N/A'
+    if (inv.agent && typeof inv.agent === 'object') {
+      if (inv.agent.managedByModel === 'RelationshipManager') return inv.agent.managedBy?.name || 'N/A'
+      if (inv.agent.managedByModel === 'Franchise') return inv.agent.managedBy?.name || inv.franchise?.name || 'N/A'
+    }
+    // try resolve agent id
+    const agentId = inv.agent?._id || inv.agent?.id || inv.agent
+    if (agentId) {
+      const agentObj = agents.find(a => (a._id || a.id) === agentId || (a._id || a.id)?.toString() === agentId?.toString())
+      if (agentObj) {
+        if (agentObj.managedByModel === 'RelationshipManager') return agentObj.managedBy?.name || 'N/A'
+        if (agentObj.managedByModel === 'Franchise') return agentObj.managedBy?.name || inv.franchise?.name || 'N/A'
+      }
+    }
+    return inv.franchise?.name || 'N/A'
+  }
   const isOverdue = (dueDate) => {
     return new Date(dueDate) < new Date() && statusFilter !== 'paid'
   }
@@ -304,7 +321,7 @@ const Invoices = () => {
                 'Invoice Number': inv.invoiceNumber || 'N/A',
                 'Loan Account No': getLeadName(inv.lead?._id || inv.lead?.id || inv.lead || inv.leadId) || 'N/A',
                 Agent: inv.agent?.name || 'N/A',
-                Franchise: inv.franchise?.name || 'N/A',
+                Associated: getAssociatedForInvoice(inv),
                 'Commission Amount': inv.commissionAmount ?? '',
                 'TDS Amount': inv.tdsAmount ?? '',
                 'Net Payable': inv.netPayable ?? '',
@@ -394,7 +411,7 @@ const Invoices = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Franchise</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Associated</label>
                 <select value={franchiseFilter} onChange={(e) => setFranchiseFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
                   <option value="">All franchises</option>
                   {franchises.map((f) => <option key={f._id || f.id} value={f._id || f.id}>{f.name || 'Unnamed'}</option>)}

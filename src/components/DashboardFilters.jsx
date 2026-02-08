@@ -89,7 +89,8 @@ export default function DashboardFilters({ filters = {}, onApply, onReset, role 
   const [banks, setBanks] = useState([])
   const [loadingOptions, setLoadingOptions] = useState(false)
 
-  const showFranchise = role === 'super_admin' || role === 'regional_manager' || role === 'relationship_manager' || role === 'accounts_manager'
+  // Relationship managers should not see franchise list (server disallows it)
+  const showFranchise = role === 'super_admin' || role === 'regional_manager' || role === 'accounts_manager'
   const showAgent = showFranchise || role === 'franchise'
   const showBank = true
 
@@ -224,14 +225,14 @@ export default function DashboardFilters({ filters = {}, onApply, onReset, role 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {showFranchise && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Franchise</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Associated</label>
                 <select
                   value={local.franchiseId || ''}
                   onChange={(e) => handleChange('franchiseId', e.target.value)}
                   className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm bg-white"
                   disabled={loadingOptions}
                 >
-                  <option value="">All franchises</option>
+              <option value="">All franchises</option>
                   {franchises.map((f) => (
                     <option key={f._id || f.id} value={f._id || f.id}>
                       {f.name || 'Unnamed'}

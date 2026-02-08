@@ -17,7 +17,20 @@ const LeadForm = ({ lead, onSave, onClose }) => {
   }
 
   const agentId = useMemo(() => extractId(currentUser?._id || currentUser?.id), [currentUser])
-  const franchiseId = useMemo(() => extractId(currentUser?.franchise), [currentUser])
+  const associatedId = useMemo(() => {
+    if (!currentUser) return ''
+    if (currentUser.role === 'franchise') return extractId(currentUser?.franchiseOwned || currentUser?.franchise)
+    if (currentUser.role === 'relationship_manager') return extractId(currentUser?.relationshipManagerOwned)
+    if (currentUser.role === 'agent') return extractId(currentUser?.managedBy || currentUser?.franchise)
+    return ''
+  }, [currentUser])
+  const associatedModelDefault = useMemo(() => {
+    if (!currentUser) return undefined
+    if (currentUser.role === 'franchise') return 'Franchise'
+    if (currentUser.role === 'relationship_manager') return 'RelationshipManager'
+    if (currentUser.role === 'agent') return currentUser?.managedByModel || (currentUser?.franchise ? 'Franchise' : undefined)
+    return undefined
+  }, [currentUser])
 
   const [formData, setFormData] = useState({
     applicantEmail: '',
@@ -26,10 +39,11 @@ const LeadForm = ({ lead, onSave, onClose }) => {
     loanAmount: '',
     status: 'logged',
     agentId: agentId,
-    franchiseId: franchiseId,
+    associatedId: associatedId,
+    associatedModel: associatedModelDefault,
     bankId: '',
     customerName: '',
-    sanctionedAmount: '',
+    // sanctionedAmount removed
     sanctionedDate: '',
     disbursedAmount: '',
     disbursementDate: '',
@@ -93,10 +107,10 @@ const LeadForm = ({ lead, onSave, onClose }) => {
         loanAmount: lead.loanAmount || '',
         status: lead.status || 'logged',
         agentId: agentId,
-        franchiseId: franchiseId,
+        associatedId: extractId(lead.associated || lead.franchise),
+        associatedModel: lead.associatedModel || (lead.franchise ? 'Franchise' : undefined),
         bankId: extractId(lead.bankId || lead.bank),
         customerName: lead.customerName || '',
-        sanctionedAmount: lead.sanctionedAmount || '',
         sanctionedDate: lead.sanctionedDate ? new Date(lead.sanctionedDate).toISOString().split('T')[0] : '',
         disbursedAmount: lead.disbursedAmount || '',
         disbursementDate: lead.disbursementDate ? new Date(lead.disbursementDate).toISOString().split('T')[0] : '',
@@ -117,10 +131,11 @@ const LeadForm = ({ lead, onSave, onClose }) => {
       setFormData((prev) => ({
         ...prev,
         agentId: agentId,
-        franchiseId: franchiseId,
+        associatedId: associatedId,
+        associatedModel: associatedModelDefault,
       }))
     }
-  }, [lead, agentId, franchiseId, staff])
+  }, [lead, agentId, associatedId, associatedModelDefault, staff])
 
   const validate = () => {
     const newErrors = {}
@@ -177,13 +192,21 @@ const LeadForm = ({ lead, onSave, onClose }) => {
         }
       }
       
-      onSave(finalFormData)
+      // Map to API expected fields: associated + associatedModel
+      const payload = {
+        ...finalFormData,
+        associated: finalFormData.associatedId || undefined,
+        associatedModel: finalFormData.associatedModel || associatedModelDefault,
+      }
+      // remove client-only fields
+      delete payload.associatedId
+      onSave(payload)
     }
   }
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    const numericFields = ['loanAmount', 'sanctionedAmount', 'disbursedAmount']
+    const numericFields = ['loanAmount', 'disbursedAmount']
     setFormData((prev) => ({
       ...prev,
       [name]: numericFields.includes(name) ? (value === '' ? '' : parseFloat(value) || '') : value,
@@ -375,83 +398,67 @@ const LeadForm = ({ lead, onSave, onClose }) => {
         {errors.bankId && <p className="mt-1 text-sm text-red-600">{errors.bankId}</p>}
       </div>
 
-      <div className="pt-4 border-t border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Sanction & Disbursement Details</h3>
-      </div>
+  <div className="pt-4 border-t border-gray-200">
+    <h3 className="text-lg font-semibold text-gray-900 mb-4">Sanction & Disbursement Details</h3>
+  </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Sanctioned Amount (₹)
-        </label>
-        <input
-          type="number"
-          name="sanctionedAmount"
-          value={formData.sanctionedAmount}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          placeholder="Enter sanctioned amount"
-          min="0"
-          step="1000"
-        />
-      </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Sanctioned Date
+    </label>
+    <input
+      type="date"
+      name="sanctionedDate"
+      value={formData.sanctionedDate}
+      onChange={handleChange}
+      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+    />
+  </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Sanctioned Date
-        </label>
-        <input
-          type="date"
-          name="sanctionedDate"
-          value={formData.sanctionedDate}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Disbursed Amount (₹)
+    </label>
+    <input
+      type="number"
+      name="disbursedAmount"
+      value={formData.disbursedAmount}
+      onChange={handleChange}
+      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+      placeholder="Enter disbursed amount"
+      min="0"
+      step="1000"
+    />
+  </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Disbursed Amount (₹)
-        </label>
-        <input
-          type="number"
-          name="disbursedAmount"
-          value={formData.disbursedAmount}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          placeholder="Enter disbursed amount"
-          min="0"
-          step="1000"
-        />
-      </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Disbursement Date
+    </label>
+    <input
+      type="date"
+      name="disbursementDate"
+      value={formData.disbursementDate}
+      onChange={handleChange}
+      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+    />
+  </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Disbursement Date
-        </label>
-        <input
-          type="date"
-          name="disbursementDate"
-          value={formData.disbursementDate}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Disbursement Type
-        </label>
-        <select
-          name="disbursementType"
-          value={formData.disbursementType}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-        >
-          <option value="">Select disbursement type</option>
-          <option value="full">Full</option>
-          <option value="partial">Partial</option>
-        </select>
-      </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Disbursement Type
+    </label>
+    <select
+      name="disbursementType"
+      value={formData.disbursementType}
+      onChange={handleChange}
+      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+    >
+      <option value="">Select disbursement type</option>
+      <option value="full">Full</option>
+      <option value="partial">Partial</option>
+    </select>
+  </div>
 
       <div className="pt-4 border-t border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Manager Details</h3>

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, Users, ChevronDown, ChevronUp, FileDown } from 'lucide-react'
 import IndianRupeeIcon from '../components/IndianRupeeIcon'
 import api from '../services/api'
+import { authService } from '../services/auth.service'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
 import AgentForm from '../components/AgentForm'
@@ -16,6 +17,8 @@ const Agents = () => {
   const [leads, setLeads] = useState([])
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
+  const userRole = authService.getUser()?.role
+  const hideAssociated = userRole === 'relationship_manager' || userRole === 'franchise'
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [franchiseFilter, setFranchiseFilter] = useState('')
@@ -29,7 +32,11 @@ const Agents = () => {
 
   useEffect(() => {
     fetchAgents()
-    fetchFranchises()
+    // Don't request franchises for relationship managers (they are not allowed to view franchises)
+    const role = authService.getUser()?.role
+    if (role !== 'relationship_manager') {
+      fetchFranchises()
+    }
     fetchLeads()
     fetchInvoices()
   }, [])
@@ -39,6 +46,10 @@ const Agents = () => {
       setLoading(true)
       const response = await api.agents.getAll()
       const agentsData = response.data || response || []
+      console.log('🔍 DEBUG: Fetched agents count:', Array.isArray(agentsData) ? agentsData.length : 'unknown')
+      if (Array.isArray(agentsData) && agentsData.length > 0) {
+        console.log('🔍 DEBUG: Sample agent:', agentsData[0])
+      }
       setAgents(Array.isArray(agentsData) ? agentsData : [])
     } catch (error) {
       console.error('Error fetching agents:', error)
@@ -52,6 +63,10 @@ const Agents = () => {
     try {
       const response = await api.franchises.getAll()
       const franchisesData = response.data || response || []
+      console.log('🔍 DEBUG: Fetched franchises count:', Array.isArray(franchisesData) ? franchisesData.length : 'unknown')
+      if (Array.isArray(franchisesData) && franchisesData.length > 0) {
+        console.log('🔍 DEBUG: Sample franchise:', franchisesData[0])
+      }
       setFranchises(Array.isArray(franchisesData) ? franchisesData : [])
     } catch (error) {
       console.error('Error fetching franchises:', error)
@@ -176,7 +191,9 @@ const Agents = () => {
         (agent.mobile && agent.mobile.toString().includes(searchTerm)) ||
         (agent.phone && agent.phone.toString().includes(searchTerm))
       const matchesStatus = statusFilter === 'all' || agent.status === statusFilter
-      const agentFranchiseId = agent.franchise?._id || agent.franchise?.id || agent.franchise
+      const agentFranchiseId = agent.managedByModel === 'Franchise'
+        ? (agent.managedBy?._id || agent.managedBy?.id || agent.managedBy)
+        : (agent.franchise?._id || agent.franchise?.id || agent.franchise)
       const matchesFranchise = !franchiseFilter || (agentFranchiseId && (agentFranchiseId === franchiseFilter || agentFranchiseId.toString() === franchiseFilter))
       return matchesSearch && matchesStatus && matchesFranchise
     })
@@ -261,12 +278,11 @@ const Agents = () => {
           return
         }
         // Map frontend fields to backend fields
-        const franchiseId = selectedAgent.franchise?._id || selectedAgent.franchise?.id || selectedAgent.franchise
         const updateData = {
           name: formData.name,
           email: formData.email,
           mobile: formData.phone || formData.mobile,
-          ...(franchiseId && { franchise: franchiseId }),
+          franchise: formData.franchise,
           status: formData.status,
         }
         await api.agents.update(agentId, updateData)
@@ -290,6 +306,10 @@ const Agents = () => {
           password: rest.password || 'Agent@123',
           role: 'agent',
           status: rest.status || 'active',
+          // New unified API expects managedBy + managedByModel for agents.
+          // Fall back to legacy `franchise` if provided.
+          managedBy: rest.managedBy || rest.franchise || '',
+          managedByModel: rest.managedByModel || (rest.franchise ? 'Franchise' : 'Franchise'),
         }
 
         console.log('🔍 DEBUG: Creating agent with data:', JSON.stringify(agentData, null, 2))
@@ -337,6 +357,37 @@ const Agents = () => {
     return franchise ? (franchise.name || 'N/A') : 'N/A'
   }
 
+  // Return the associated name for an agent (either Franchise or Relationship Manager)
+  const getAssociatedName = (agent) => {
+    if (!agent) return 'N/A'
+    // If agent has managedBy populated
+    if (agent.managedByModel === 'RelationshipManager') {
+      return agent.managedBy?.name || 'N/A'
+    }
+    if (agent.managedByModel === 'Franchise') {
+      return agent.managedBy?.name || getFranchiseName(agent.franchise || (agent.managedBy?._id || agent.managedBy?.id)) || 'N/A'
+    }
+
+    // Fallbacks when managedByModel is missing or unspecified:
+    // 1. If managedBy is populated (object), prefer its name
+    if (agent.managedBy && typeof agent.managedBy === 'object' && agent.managedBy.name) {
+      return agent.managedBy.name
+    }
+    // 2. If franchise field exists, prefer franchise name
+    if (agent.franchise && (agent.franchise.name || agent.franchise._id || agent.franchise.id)) {
+      return agent.franchise?.name || getFranchiseName(agent.franchise)
+    }
+    // 3. If managedBy is an ID string, try resolving via franchises list
+    const managedById = agent.managedBy?._id || agent.managedBy?.id || agent.managedBy
+    if (managedById) {
+      const resolved = getFranchiseName(managedById)
+      if (resolved && resolved !== 'N/A') return resolved
+    }
+
+    // Legacy fallback
+    return 'N/A'
+  }
+
   const getAgentLeads = (agentId) => {
     if (!agentId || !leads || leads.length === 0) return []
     return leads.filter(lead => {
@@ -365,18 +416,23 @@ const Agents = () => {
               const rows = sortedAgents.map((agent) => {
                 const agentId = agent.id || agent._id
                 const stats = getAgentLeadStats(agentId)
-                const franchiseId = agent.franchise?._id || agent.franchise?.id || agent.franchise
-                return {
+                const franchiseId = agent.managedByModel === 'Franchise'
+                  ? (agent.managedBy?._id || agent.managedBy?.id || agent.managedBy)
+                  : (agent.franchise?._id || agent.franchise?.id || agent.franchise)
+                const row = {
                   Name: agent.name || 'N/A',
                   Email: agent.email || 'N/A',
                   Phone: agent.mobile || agent.phone || 'N/A',
-                  Franchise: agent.franchise?.name || getFranchiseName(franchiseId) || 'N/A',
                   'Total Leads': stats.total,
                   'Active Leads': stats.active,
                   Completed: stats.completed,
                   Commission: stats.commission,
                   Status: agent.status || 'N/A',
                 }
+                if (!hideAssociated) {
+                  row.Associated = getAssociatedName(agent)
+                }
+                return row
               })
               exportToExcel(rows, `agents_export_${Date.now()}`, 'Agents')
               toast.success('Export', `Exported ${rows.length} agents to Excel`)
@@ -482,21 +538,23 @@ const Agents = () => {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Franchise</label>
-                <select
-                  value={franchiseFilter}
-                  onChange={(e) => setFranchiseFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
-                >
-                  <option value="">All franchises</option>
-                  {franchises.map((f) => (
-                    <option key={f._id || f.id} value={f._id || f.id}>
-                      {f.name || 'Unnamed'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!hideAssociated && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Associated</label>
+                  <select
+                    value={franchiseFilter}
+                    onChange={(e) => setFranchiseFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
+                  >
+                    <option value="">All franchises</option>
+                    {franchises.map((f) => (
+                      <option key={f._id || f.id} value={f._id || f.id}>
+                        {f.name || 'Unnamed'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             {hasActiveFilters && (
               <div className="flex items-center gap-2 pt-1">
@@ -534,9 +592,11 @@ const Agents = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Contact
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Franchise
-                </th>
+                {!hideAssociated && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Associated
+                  </th>
+                )}
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('totalLeads')}
@@ -604,7 +664,9 @@ const Agents = () => {
                 sortedAgents.map((agent, index) => {
                   const agentId = agent.id || agent._id
                   const leadStats = getAgentLeadStats(agentId)
-                  const franchiseId = agent.franchise?._id || agent.franchise?.id || agent.franchise || agent.franchiseId
+                  const franchiseId = agent.managedByModel === 'Franchise'
+                    ? (agent.managedBy?._id || agent.managedBy?.id || agent.managedBy)
+                    : (agent.franchise?._id || agent.franchise?.id || agent.franchise || agent.franchiseId)
 
                   return (
                     <tr key={agentId || `agent-${index}`} className="hover:bg-gray-50">
@@ -615,11 +677,13 @@ const Agents = () => {
                         <div className="text-sm text-gray-900">{agent.email || 'N/A'}</div>
                         <div className="text-sm text-gray-500">{agent.mobile || agent.phone || 'N/A'}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {agent.franchise?.name || getFranchiseName(franchiseId) || 'N/A'}
-                        </div>
-                      </td>
+                      {!hideAssociated && (
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900">
+                            {getAssociatedName(agent) || 'N/A'}
+                          </div>
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{leadStats.total}</div>
                       </td>
@@ -725,12 +789,12 @@ const Agents = () => {
                 <label className="text-sm font-medium text-gray-500">Phone</label>
                 <p className="mt-1 text-sm text-gray-900">{selectedAgent.phone || selectedAgent.mobile || 'N/A'}</p>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Franchise</label>
-                <p className="mt-1 text-sm text-gray-900">
-                  {selectedAgent.franchise?.name || getFranchiseName(selectedAgent.franchiseId || selectedAgent.franchise?._id || selectedAgent.franchise?.id || selectedAgent.franchise) || 'N/A'}
-                </p>
-              </div>
+              {!hideAssociated && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Associated</label>
+                  <p className="mt-1 text-sm text-gray-900">{getAssociatedName(selectedAgent) || 'N/A'}</p>
+                </div>
+              )}
               <div>
                 <label className="text-sm font-medium text-gray-500">Status</label>
                 <div className="mt-1">
