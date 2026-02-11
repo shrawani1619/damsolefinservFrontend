@@ -20,6 +20,7 @@ const Leads = () => {
   const [agents, setAgents] = useState([])
   const [banks, setBanks] = useState([])
   const [staff, setStaff] = useState([])
+  const [bankManagers, setBankManagers] = useState([])
   const [franchises, setFranchises] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -117,6 +118,7 @@ const Leads = () => {
       fetchAgents()
     }
     fetchBanks()
+    fetchBankManagers()
     fetchStaff()
     // Relationship managers are not allowed to view franchises — don't request franchises for them
     if (userRole !== 'relationship_manager') {
@@ -211,6 +213,17 @@ const Leads = () => {
     } catch (error) {
       console.error('Error fetching staff:', error)
       setStaff([])
+    }
+  }
+
+  const fetchBankManagers = async () => {
+    try {
+      const response = await api.bankManagers.getAll({ limit: 1000 })
+      const bmData = response.data || response || []
+      setBankManagers(Array.isArray(bmData) ? bmData : [])
+    } catch (error) {
+      console.error('Error fetching bank managers:', error)
+      setBankManagers([])
     }
   }
 
@@ -708,12 +721,18 @@ const Leads = () => {
       const id = staffIdOrObject._id || staffIdOrObject.id
       if (id) {
         const staffMember = staff.find((s) => s.id === id || s._id === id)
-        return staffMember ? (staffMember.name || 'N/A') : 'N/A'
+        if (staffMember) return staffMember.name || 'N/A'
+        const bm = bankManagers.find((b) => b.id === id || b._id === id)
+        if (bm) return bm.name || 'N/A'
+        return 'N/A'
       }
     }
 
     const staffMember = staff.find((s) => s.id === staffIdOrObject || s._id === staffIdOrObject)
-    return staffMember ? (staffMember.name || 'N/A') : 'N/A'
+    if (staffMember) return staffMember.name || 'N/A'
+    const bm = bankManagers.find((b) => b.id === staffIdOrObject || b._id === staffIdOrObject)
+    if (bm) return bm.name || 'N/A'
+    return 'N/A'
   }
 
   const toggleExpand = (leadId, field) => {

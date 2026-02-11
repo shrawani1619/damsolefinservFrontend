@@ -385,6 +385,44 @@ export const api = {
     }),
   },
 
+  // Documents (file uploads)
+  documents: {
+    /**
+     * Upload a single file using multipart/form-data.
+     * Expects server route POST /documents
+     * @param {FormData} formData
+     */
+    upload: async (formData) => {
+      const url = `${API_BASE_URL}/documents`;
+      const token = authService.getToken();
+
+      const config = {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: formData,
+        credentials: 'include',
+      };
+
+      const response = await fetch(url, config);
+      const contentType = response.headers.get('content-type') || '';
+      let data;
+      if (contentType.includes('application/json')) data = await response.json();
+      else {
+        const text = await response.text();
+        data = text ? { message: text } : { message: 'An error occurred' };
+      }
+
+      if (!response.ok) {
+        const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
+        throw new Error(errorMessage);
+      }
+
+      return data;
+    },
+  },
+
   // Banks endpoints
   banks: {
     getAll: (params = {}) => {
@@ -455,15 +493,6 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
     delete: (id) => apiRequest(`/bank-managers/${id}`, { method: 'DELETE' }),
-  },
-
-  // Notifications endpoints
-  notifications: {
-    getAll: () => apiRequest('/notifications'),
-    getUnreadCount: () => apiRequest('/notifications/unread-count'),
-    markAsRead: (id) => apiRequest(`/notifications/${id}/read`, { method: 'PUT' }),
-    markAllAsRead: () => apiRequest('/notifications/read-all', { method: 'PUT' }),
-    delete: (id) => apiRequest(`/notifications/${id}`, { method: 'DELETE' }),
   },
 };
 

@@ -268,7 +268,7 @@ const Agents = () => {
     setIsDetailModalOpen(true)
   }
 
-  const handleSave = async (formData) => {
+  const handleSave = async (formData, files = {}) => {
     try {
       if (selectedAgent) {
         // Update existing agent
@@ -284,6 +284,8 @@ const Agents = () => {
           mobile: formData.phone || formData.mobile,
           franchise: formData.franchise,
           status: formData.status,
+          kyc: formData.kyc || undefined,
+          bankDetails: formData.bankDetails || undefined,
         }
         await api.agents.update(agentId, updateData)
         await fetchAgents()
@@ -310,14 +312,54 @@ const Agents = () => {
           // Fall back to legacy `franchise` if provided.
           managedBy: rest.managedBy || rest.franchise || '',
           managedByModel: rest.managedByModel || (rest.franchise ? 'Franchise' : 'Franchise'),
+          kyc: rest.kyc || undefined,
+          bankDetails: rest.bankDetails || undefined,
         }
 
         console.log('🔍 DEBUG: Creating agent with data:', JSON.stringify(agentData, null, 2))
 
-        await api.agents.create(agentData)
+        const response = await api.agents.create(agentData)
+        const created = response.data || response
         await fetchAgents()
         await fetchLeads() // Refresh leads to update statistics
         await fetchInvoices() // Refresh invoices to update commission
+        // After creating agent, upload pending files (if any)
+        const agentId = created._id || created.id || created.data?._id
+        try {
+          // pendingFiles: { docType: { file, label } }
+          const pendingFiles = files.pendingFiles || {}
+          for (const [docType, fileObj] of Object.entries(pendingFiles)) {
+            const file = fileObj?.file
+            const label = fileObj?.label
+            if (file) {
+              const fd = new FormData()
+              fd.append('file', file)
+              fd.append('entityType', 'user')
+              fd.append('entityId', agentId)
+              fd.append('documentType', docType)
+              if (label) fd.append('label', label)
+              await api.documents.upload(fd)
+            }
+          }
+          // additionalDocuments array (each item may have file and label)
+          const additional = files.additionalDocuments || []
+          for (const ad of additional) {
+            const file = ad?.file
+            const label = ad?.label
+            if (file) {
+              const fd = new FormData()
+              fd.append('file', file)
+              fd.append('entityType', 'user')
+              fd.append('entityId', agentId)
+              fd.append('documentType', 'additional')
+              if (label) fd.append('label', label)
+              await api.documents.upload(fd)
+            }
+          }
+        } catch (err) {
+          console.error('Error uploading pending files for new agent:', err)
+        }
+
         setIsCreateModalOpen(false)
         toast.success('Success', 'Agent created successfully')
       }

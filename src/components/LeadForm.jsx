@@ -63,6 +63,7 @@ const LeadForm = ({ lead, onSave, onClose }) => {
   const [errors, setErrors] = useState({})
   const [banks, setBanks] = useState([])
   const [staff, setStaff] = useState([])
+  const [bankManagers, setBankManagers] = useState([])
   const [loading, setLoading] = useState(true)
   const [smBmSearch, setSmBmSearch] = useState('')
   const [showSmBmSuggestions, setShowSmBmSuggestions] = useState(false)
@@ -74,9 +75,11 @@ const LeadForm = ({ lead, onSave, onClose }) => {
         const fetchPromises = [
           api.banks.getAll(),
           api.staff.getAll(),
+          // load a larger set initially (backend supports pagination)
+          api.bankManagers.getAll({ limit: 1000 }),
         ]
         
-        const [banksResponse, staffResponse] = await Promise.all(fetchPromises)
+        const [banksResponse, staffResponse, bankManagersResponse] = await Promise.all(fetchPromises)
         
         // Handle banks
         const banksData = banksResponse?.data || (Array.isArray(banksResponse) ? banksResponse : [])
@@ -85,10 +88,15 @@ const LeadForm = ({ lead, onSave, onClose }) => {
         // Handle staff
         const staffData = staffResponse?.data || (Array.isArray(staffResponse) ? staffResponse : [])
         setStaff(Array.isArray(staffData) ? staffData : [])
+        
+        // Handle bank managers
+        const bankManagersData = bankManagersResponse?.data || (Array.isArray(bankManagersResponse) ? bankManagersResponse : [])
+        setBankManagers(Array.isArray(bankManagersData) ? bankManagersData : [])
       } catch (error) {
         console.error('Error fetching data:', error)
         setBanks([])
         setStaff([])
+        setBankManagers([])
       } finally {
         setLoading(false)
       }
@@ -96,10 +104,41 @@ const LeadForm = ({ lead, onSave, onClose }) => {
     fetchData()
   }, [])
 
+  // When a bank is selected, fetch bank managers for that bank only.
+  // If bank is cleared, restore the unfiltered list.
+  useEffect(() => {
+    const fetchByBank = async () => {
+      try {
+        // don't block the whole form for this small request, but indicate loading
+        setLoading(true)
+        if (!formData.bankId) {
+          // no bank selected -> load all bank managers
+          const resp = await api.bankManagers.getAll({ limit: 1000 })
+          const data = resp?.data || (Array.isArray(resp) ? resp : [])
+          setBankManagers(Array.isArray(data) ? data : [])
+          return
+        }
+
+        // fetch managers for the selected bank
+        const resp = await api.bankManagers.getAll({ bank: formData.bankId, limit: 1000 })
+        const data = resp?.data || (Array.isArray(resp) ? resp : [])
+        setBankManagers(Array.isArray(data) ? data : [])
+      } catch (err) {
+        console.error('Error fetching bank managers for bank:', err)
+        setBankManagers([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchByBank()
+  }, [formData.bankId])
+
   useEffect(() => {
     if (lead) {
       const smBmId = extractId(lead.smBmId || lead.smBm)
-      const selectedStaff = staff.find((s) => (s.id || s._id) === smBmId)
+      const allManagers = [...staff, ...bankManagers]
+      const selectedStaff = allManagers.find((s) => (s.id || s._id) === smBmId)
       setFormData({
         applicantEmail: lead.applicantEmail || lead.email || '',
         applicantMobile: lead.applicantMobile || lead.phone || '',
@@ -135,7 +174,7 @@ const LeadForm = ({ lead, onSave, onClose }) => {
         associatedModel: associatedModelDefault,
       }))
     }
-  }, [lead, agentId, associatedId, associatedModelDefault, staff])
+  }, [lead, agentId, associatedId, associatedModelDefault, staff, bankManagers])
 
   const validate = () => {
     const newErrors = {}
@@ -143,6 +182,8 @@ const LeadForm = ({ lead, onSave, onClose }) => {
     if (!formData.loanType) newErrors.loanType = 'Loan type is required'
     if (!formData.loanAmount || formData.loanAmount <= 0) newErrors.loanAmount = 'Loan amount must be greater than 0'
     if (!formData.bankId) newErrors.bankId = 'Bank is required'
+    if (!formData.customerName || !formData.customerName.trim()) newErrors.customerName = 'Customer name is required'
+    if (!formData.loanAccountNo || !formData.loanAccountNo.trim()) newErrors.loanAccountNo = 'Loan account number is required'
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -159,36 +200,35 @@ const LeadForm = ({ lead, onSave, onClose }) => {
       const hasSmBmEmail = formData.smBmEmail?.trim()
       const hasSmBmMobile = formData.smBmMobile?.trim()
       
-      // Create SM/BM if name is provided and (email or mobile is provided) but no staff ID is selected
+      // Create SM/BM as a BankManager (contact-only) if name is provided and (email or mobile is provided) but no staff/bm ID is selected
       if (hasSmBmName && (hasSmBmEmail || hasSmBmMobile) && !formData.smBmId) {
         try {
-          // Create new staff member
-          const newStaffData = {
+          const newBMData = {
             name: smBmName,
             email: hasSmBmEmail || `${smBmName.toLowerCase().replace(/\s+/g, '.')}@ykc.com`,
             mobile: hasSmBmMobile || '',
-            password: 'Default@123', // Default password
-            role: 'staff',
+            role: 'bm',
+            bank: formData.bankId || undefined,
             status: 'active',
           }
-          
-          const response = await api.staff.create(newStaffData)
-          const newStaffId = response?.data?._id || response?.data?.id || response?._id || response?.id
-          
-          if (newStaffId) {
-            finalFormData.smBmId = newStaffId
-            // Refresh staff list to include the newly created staff member
+
+          const response = await api.bankManagers.create(newBMData)
+          const newBMId = response?.data?._id || response?.data?.id || response?._id || response?.id
+
+          if (newBMId) {
+            finalFormData.smBmId = newBMId
+            // Refresh bank managers list to include the newly created BM
             try {
-              const staffResponse = await api.staff.getAll()
-              const staffData = staffResponse?.data || (Array.isArray(staffResponse) ? staffResponse : [])
-              setStaff(Array.isArray(staffData) ? staffData : [])
+              const bmResponse = await api.bankManagers.getAll({ limit: 1000 })
+              const bmData = bmResponse?.data || (Array.isArray(bmResponse) ? bmResponse : [])
+              setBankManagers(Array.isArray(bmData) ? bmData : [])
             } catch (refreshError) {
-              console.error('Error refreshing staff list:', refreshError)
+              console.error('Error refreshing bank managers list:', refreshError)
             }
           }
         } catch (error) {
-          console.error('Error creating SM/BM:', error)
-          // Continue with submission even if staff creation fails
+          console.error('Error creating SM/BM (BankManager):', error)
+          // Continue with submission even if BM creation fails
         }
       }
       
@@ -197,6 +237,8 @@ const LeadForm = ({ lead, onSave, onClose }) => {
         ...finalFormData,
         associated: finalFormData.associatedId || undefined,
         associatedModel: finalFormData.associatedModel || associatedModelDefault,
+        // Pass SM/BM name so backend can create staff when needed
+        smBmName: !finalFormData.smBmId ? (smBmSearch?.trim() || undefined) : undefined,
       }
       // remove client-only fields
       delete payload.associatedId
@@ -218,7 +260,7 @@ const LeadForm = ({ lead, onSave, onClose }) => {
     
   }
 
-  const filteredStaff = staff.filter((staffMember) =>
+  const filteredStaff = [...staff, ...bankManagers].filter((staffMember) =>
     (staffMember.name || '').toLowerCase().includes(smBmSearch.toLowerCase())
   )
 
@@ -251,16 +293,19 @@ const LeadForm = ({ lead, onSave, onClose }) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Customer Name
+          Customer Name <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           name="customerName"
           value={formData.customerName}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+            errors.customerName ? 'border-red-500' : 'border-gray-300'
+          }`}
           placeholder="Enter customer name"
         />
+        {errors.customerName && <p className="mt-1 text-sm text-red-600">{errors.customerName}</p>}
       </div>
 
       <div>
@@ -323,16 +368,19 @@ const LeadForm = ({ lead, onSave, onClose }) => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Loan Account No
+          Loan Account No <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           name="loanAccountNo"
           value={formData.loanAccountNo}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+            errors.loanAccountNo ? 'border-red-500' : 'border-gray-300'
+          }`}
           placeholder="Enter loan account number"
         />
+        {errors.loanAccountNo && <p className="mt-1 text-sm text-red-600">{errors.loanAccountNo}</p>}
       </div>
 
       <div>
@@ -482,7 +530,7 @@ const LeadForm = ({ lead, onSave, onClose }) => {
             {filteredStaff.map((staffMember) => (
               <div
                 key={staffMember.id || staffMember._id}
-                onClick={() => handleSmBmSelect(staffMember)}
+                onMouseDown={(e) => { e.preventDefault(); handleSmBmSelect(staffMember) }}
                 className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
               >
                 <div className="font-medium text-gray-900">{staffMember.name || 'N/A'}</div>

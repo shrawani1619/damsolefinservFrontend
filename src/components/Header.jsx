@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Bell } from 'lucide-react'
-import NotificationDropdown from './NotificationDropdown'
 import ProfileDropdown from './ProfileDropdown'
-import { getUnreadCount } from '../services/notificationService'
 import { authService } from '../services/auth.service'
 import api from '../services/api'
 
@@ -86,42 +83,7 @@ const Header = () => {
     }
   }, [])
 
-  // Fetch notification count (live updates every 30 seconds)
-  useEffect(() => {
-    // Only fetch notifications if authenticated
-    if (!authService.isAuthenticated()) {
-      return
-    }
-
-    const fetchNotificationCount = async () => {
-      try {
-        const count = await getUnreadCount()
-        setUnreadCount(count)
-      } catch (error) {
-        // Silently fail for connection errors or auth errors
-        const isConnectionError = error.message && (
-          error.message.includes('Failed to fetch') ||
-          error.message.includes('NetworkError') ||
-          error.message.includes('Connection') ||
-          error.name === 'TypeError'
-        )
-
-        if (error.message && error.message.includes('401')) {
-          return
-        }
-
-        // Don't log connection errors - they're expected when backend is down
-        if (!isConnectionError) {
-          console.error('Error fetching notification count:', error)
-        }
-      }
-    }
-
-    fetchNotificationCount()
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotificationCount, 30000)
-    return () => clearInterval(interval)
-  }, [])
+ 
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -154,27 +116,6 @@ const Header = () => {
 
       {/* Right Section */}
       <div className="flex items-center gap-4 pr-0 flex-shrink-0 relative">
-        <div className="relative z-[110]" ref={notificationRef}>
-          <button
-            onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-            className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors z-[110]"
-          >
-            <Bell className="w-5 h-5 text-gray-600" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse z-[111]"></span>
-            )}
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-semibold z-[111]">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-          <NotificationDropdown
-            isOpen={isNotificationOpen}
-            onClose={() => setIsNotificationOpen(false)}
-            onCountChange={setUnreadCount}
-          />
-        </div>
         <div className="relative z-[110]" ref={profileRef}>
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}

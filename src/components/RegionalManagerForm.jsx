@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import api from '../services/api'
 
 const RegionalManagerForm = ({ onSave, onClose }) => {
   const [formData, setFormData] = useState({
@@ -9,6 +10,16 @@ const RegionalManagerForm = ({ onSave, onClose }) => {
     status: 'active',
   })
   const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      kyc: prev.kyc || { pan: '', aadhaar: '', gst: '' },
+      bankDetails: prev.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
+      documents: prev.documents || [],
+      pendingFile: prev.pendingFile || null,
+    }))
+  }, [])
 
   const validate = () => {
     const newErrors = {}
@@ -34,6 +45,23 @@ const RegionalManagerForm = ({ onSave, onClose }) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }))
+  }
+
+  const handleNestedChange = (e) => {
+    const { name, value } = e.target
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.')
+      setFormData((prev) => ({ ...prev, [parent]: { ...(prev[parent] || {}), [child]: value } }))
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }))
+    }
+  }
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files && e.target.files[0]
+    if (!file) return
+    // No existing RM id when creating here; keep pendingFile
+    setFormData((prev) => ({ ...prev, pendingFile: file }))
   }
 
   return (
@@ -85,6 +113,52 @@ const RegionalManagerForm = ({ onSave, onClose }) => {
           placeholder="Min 6 characters"
         />
         {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+      </div>
+      {/* KYC Fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
+          <input type="text" name="kyc.pan" value={formData.kyc?.pan || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="PAN number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar</label>
+          <input type="text" name="kyc.aadhaar" value={formData.kyc?.aadhaar || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Aadhaar number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
+          <input type="text" name="kyc.gst" value={formData.kyc?.gst || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="GST number" />
+        </div>
+      </div>
+
+      {/* Bank Details */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name</label>
+          <input type="text" name="bankDetails.accountHolderName" value={formData.bankDetails?.accountHolderName || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Account holder name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+          <input type="text" name="bankDetails.accountNumber" value={formData.bankDetails?.accountNumber || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Account number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+          <input type="text" name="bankDetails.bankName" value={formData.bankDetails?.bankName || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Bank name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+          <input type="text" name="bankDetails.branch" value={formData.bankDetails?.branch || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Branch" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">IFSC</label>
+          <input type="text" name="bankDetails.ifsc" value={formData.bankDetails?.ifsc || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="IFSC code" />
+        </div>
+      </div>
+
+      {/* Document upload */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Upload KYC / Bank Document (PDF / Image)</label>
+        <input type="file" accept="application/pdf,image/*" onChange={handleFileChange} />
+        {formData.pendingFile && <p className="text-sm text-gray-500 mt-1">File selected. It will be uploaded after creating the regional manager.</p>}
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>

@@ -239,7 +239,7 @@ const Franchises = () => {
     setIsDetailModalOpen(true)
   }
 
-  const handleSave = async (formData) => {
+  const handleSave = async (formData, files = {}) => {
     try {
       if (selectedFranchise) {
         // Update existing franchise
@@ -259,7 +259,43 @@ const Franchises = () => {
       } else {
         // Create new franchise
         const response = await api.franchises.create(formData)
+        const created = response.data || response
         if (response.success || response.data) {
+          // After creating, upload pending files (if any)
+          const franchiseId = created._id || created.id || created.data?._id
+          try {
+            const pendingFiles = files.pendingFiles || {}
+            for (const [docType, fileObj] of Object.entries(pendingFiles)) {
+              const file = fileObj?.file
+              const label = fileObj?.label
+              if (file) {
+                const fd = new FormData()
+                fd.append('file', file)
+                fd.append('entityType', 'franchise')
+                fd.append('entityId', franchiseId)
+                fd.append('documentType', docType)
+                if (label) fd.append('label', label)
+                await api.documents.upload(fd)
+              }
+            }
+            const additional = files.additionalDocuments || []
+            for (const ad of additional) {
+              const file = ad?.file
+              const label = ad?.label
+              if (file) {
+                const fd = new FormData()
+                fd.append('file', file)
+                fd.append('entityType', 'franchise')
+                fd.append('entityId', franchiseId)
+                fd.append('documentType', 'additional')
+                if (label) fd.append('label', label)
+                await api.documents.upload(fd)
+              }
+            }
+          } catch (err) {
+            console.error('Error uploading pending files for new franchise:', err)
+          }
+
           await fetchFranchises()
           await fetchLeads() // Refresh to update statistics
           await fetchAgents() // Refresh to update statistics

@@ -23,6 +23,16 @@ const RelationshipManagerForm = ({ relationshipManager, onSave, onClose }) => {
       pincode: '',
     },
   })
+  // initialize kyc and bank details
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      kyc: prev.kyc || { pan: '', aadhaar: '', gst: '' },
+      bankDetails: prev.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
+      pendingFile: prev.pendingFile || null,
+      documents: prev.documents || [],
+    }))
+  }, [])
 
   const [errors, setErrors] = useState({})
 
@@ -59,6 +69,9 @@ const RelationshipManagerForm = ({ relationshipManager, onSave, onClose }) => {
           state: relationshipManager.address?.state || '',
           pincode: relationshipManager.address?.pincode || '',
         },
+      kyc: relationshipManager.kyc || { pan: '', aadhaar: '', gst: '' },
+      bankDetails: relationshipManager.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
+      documents: relationshipManager.documents || [],
       })
     }
   }, [relationshipManager])
@@ -107,18 +120,45 @@ const RelationshipManagerForm = ({ relationshipManager, onSave, onClose }) => {
       } else {
         payload.regionalManager = formData.regionalManager || null
       }
-      onSave(payload)
+      const files = {
+        pendingFile: formData.pendingFile || null,
+        documents: formData.documents || [],
+      }
+      onSave(payload, files)
     }
   }
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.')
+      setFormData((prev) => ({ ...prev, [parent]: { ...(prev[parent] || {}), [child]: value } }))
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }))
+    }
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }))
+    }
+  }
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files && e.target.files[0]
+    if (!file) return
+    if (relationshipManager && (relationshipManager._id || relationshipManager.id)) {
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('entityType', 'user')
+        fd.append('entityId', relationshipManager._id || relationshipManager.id)
+        fd.append('documentType', 'kyc')
+        const resp = await api.documents.upload(fd)
+        const doc = resp.data || resp
+        setFormData((prev) => ({ ...prev, documents: [...(prev.documents || []), doc] }))
+      } catch (err) {
+        console.error('File upload failed', err)
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, pendingFile: file }))
     }
   }
 
@@ -260,6 +300,62 @@ const RelationshipManagerForm = ({ relationshipManager, onSave, onClose }) => {
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           placeholder="Enter pincode"
         />
+      </div>
+
+      {/* KYC Fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
+          <input type="text" name="kyc.pan" value={formData.kyc?.pan || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="PAN number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar</label>
+          <input type="text" name="kyc.aadhaar" value={formData.kyc?.aadhaar || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Aadhaar number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
+          <input type="text" name="kyc.gst" value={formData.kyc?.gst || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="GST number" />
+        </div>
+      </div>
+
+      {/* Bank Details */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name</label>
+          <input type="text" name="bankDetails.accountHolderName" value={formData.bankDetails?.accountHolderName || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Account holder name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+          <input type="text" name="bankDetails.accountNumber" value={formData.bankDetails?.accountNumber || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Account number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+          <input type="text" name="bankDetails.bankName" value={formData.bankDetails?.bankName || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Bank name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+          <input type="text" name="bankDetails.branch" value={formData.bankDetails?.branch || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Branch" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">IFSC</label>
+          <input type="text" name="bankDetails.ifsc" value={formData.bankDetails?.ifsc || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="IFSC code" />
+        </div>
+      </div>
+
+      {/* Document upload */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Upload KYC / Bank Document (PDF / Image)</label>
+        <input type="file" accept="application/pdf,image/*" onChange={handleFileChange} />
+        {formData.pendingFile && !relationshipManager && <p className="text-sm text-gray-500 mt-1">File selected. It will be uploaded after creating the relationship manager.</p>}
+        {formData.documents && formData.documents.length > 0 && (
+          <ul className="mt-2">
+            {formData.documents.map((d) => (
+              <li key={d._id || d.id} className="text-sm text-gray-700">
+                <a href={d.url || '#'} target="_blank" rel="noreferrer" className="text-primary-700 underline">{d.originalFileName || d.fileName}</a>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
+import Modal from './Modal'
 
 const AgentForm = ({ agent, onSave, onClose }) => {
   const currentUser = useMemo(() => authService.getUser(), [])
@@ -17,6 +18,18 @@ const AgentForm = ({ agent, onSave, onClose }) => {
     managedBy: '',
     managedByModel: defaultManagedByModel, // or 'RelationshipManager'
   })
+ 
+  // Add KYC, bank details and document placeholders
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      kyc: prev.kyc || { pan: '', aadhaar: '', gst: '' },
+      bankDetails: prev.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
+      documents: prev.documents || [], // uploaded document records (objects returned from server)
+      additionalDocuments: prev.additionalDocuments || [], // objects: { label, file/url, _id }
+      pendingFiles: prev.pendingFiles || {}, // hold files for new agent before creation
+    }))
+  }, [])
 
   const [errors, setErrors] = useState({})
   const [franchises, setFranchises] = useState([])
@@ -88,6 +101,9 @@ const AgentForm = ({ agent, onSave, onClose }) => {
         status: agent.status || 'active',
         managedBy: managedById,
         managedByModel,
+        kyc: agent.kyc || { pan: '', aadhaar: '', gst: '' },
+        bankDetails: agent.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
+        documents: agent.documents || [],
       })
       
       // Set initial search string if franchise is populated
@@ -157,16 +173,26 @@ const AgentForm = ({ agent, onSave, onClose }) => {
     const resolved = resolveManagedByIfNeeded()
     setFormData(resolved)
     if (validate(resolved)) {
-      onSave(resolved)
+      const files = {
+        pendingFiles: resolved.pendingFiles || {},
+        additionalDocuments: resolved.additionalDocuments || [],
+      }
+      onSave(resolved, files)
     }
   }
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    // Support nested keys like kyc.pan or bankDetails.accountNumber
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.')
+      setFormData((prev) => ({
+        ...prev,
+        [parent]: { ...(prev[parent] || {}), [child]: value },
+      }))
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }))
+    }
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }))
@@ -190,6 +216,87 @@ const AgentForm = ({ agent, onSave, onClose }) => {
     if (value === '') {
       setFormData(prev => ({ ...prev, managedBy: '' }))
     }
+  }
+
+  const handleFileChange = async (e) => {
+    // legacy single-file handler kept for backward compatibility; prefer handleFileChangeForType
+    const file = e.target.files && e.target.files[0]
+    if (!file) return
+    // default to generic 'kyc' upload when no type provided
+    return handleFileChangeForType(file, 'kyc')
+  }
+
+  const handleFileChangeForType = async (file, docType, label = '') => {
+    if (!file) return
+    // If editing an existing agent, upload immediately
+    if (agent && (agent._id || agent.id)) {
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('entityType', 'user')
+        fd.append('entityId', agent._id || agent.id)
+        fd.append('documentType', docType) // e.g. pan, aadhaar, gst, bank_statement, shop_act, additional
+        if (label) fd.append('label', label)
+        const resp = await api.documents.upload(fd)
+        const doc = resp.data || resp
+        // If it's an additional document, push to additionalDocuments
+        if (docType === 'additional') {
+          setFormData((prev) => ({ ...prev, additionalDocuments: [...(prev.additionalDocuments || []), doc] }))
+        } else {
+          setFormData((prev) => ({ ...prev, documents: [...(prev.documents || []), { ...doc, documentType: docType }] }))
+        }
+      } catch (err) {
+        console.error('File upload failed', err)
+      }
+    } else {
+      // For new agents, keep pending file in pendingFiles keyed by docType
+      setFormData((prev) => ({ ...prev, pendingFiles: { ...(prev.pendingFiles || {}), [docType]: { file, label } } }))
+    }
+  }
+
+  // Helper to add an additional doc from inputs (used for new agents)
+  const [newAdditionalLabel, setNewAdditionalLabel] = useState('')
+  const [newAdditionalFile, setNewAdditionalFile] = useState(null)
+  const addAdditionalDocument = () => {
+    if (!newAdditionalLabel || !newAdditionalFile) return
+    // If agent exists, upload via API
+    if (agent && (agent._id || agent.id)) {
+      handleFileChangeForType(newAdditionalFile, 'additional', newAdditionalLabel)
+      setNewAdditionalLabel('')
+      setNewAdditionalFile(null)
+    } else {
+      // add as pending additional document
+      setFormData((prev) => ({ ...prev, additionalDocuments: [...(prev.additionalDocuments || []), { label: newAdditionalLabel, file: newAdditionalFile }] }))
+      setNewAdditionalLabel('')
+      setNewAdditionalFile(null)
+    }
+  }
+
+  // Preview modal state
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [previewName, setPreviewName] = useState('')
+  const openPreview = (doc) => {
+    if (!doc) return
+    if (doc.url) {
+      setPreviewUrl(doc.url)
+      setPreviewName(doc.originalFileName || doc.fileName || doc.label || 'Document')
+      setPreviewOpen(true)
+      return
+    }
+    // Pending file object
+    const file = doc.file || doc
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+    setPreviewName(doc.label || file.name)
+    setPreviewOpen(true)
+  }
+  const closePreview = () => {
+    setPreviewOpen(false)
+    // revoke object URL if it was created from a File
+    try { URL.revokeObjectURL(previewUrl) } catch (e) {}
+    setPreviewUrl('')
+    setPreviewName('')
   }
 
   const selectFranchise = (franchise) => {
@@ -393,6 +500,130 @@ const AgentForm = ({ agent, onSave, onClose }) => {
         />
         {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
       </div>
+
+      {/* KYC Fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
+          <input type="text" name="kyc.pan" value={formData.kyc?.pan || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="PAN number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar</label>
+          <input type="text" name="kyc.aadhaar" value={formData.kyc?.aadhaar || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Aadhaar number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
+          <input type="text" name="kyc.gst" value={formData.kyc?.gst || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="GST number" />
+        </div>
+      </div>
+
+      {/* Bank Details */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name</label>
+          <input type="text" name="bankDetails.accountHolderName" value={formData.bankDetails?.accountHolderName || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Account holder name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+          <input type="text" name="bankDetails.accountNumber" value={formData.bankDetails?.accountNumber || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Account number" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+          <input type="text" name="bankDetails.bankName" value={formData.bankDetails?.bankName || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Bank name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+          <input type="text" name="bankDetails.branch" value={formData.bankDetails?.branch || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Branch" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">IFSC</label>
+          <input type="text" name="bankDetails.ifsc" value={formData.bankDetails?.ifsc || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="IFSC code" />
+        </div>
+      </div>
+
+      {/* Document upload - separate fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">PAN Card (upload)</label>
+          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'pan')} />
+          {(formData.pendingFiles?.pan || (formData.documents || []).find(d => d.documentType === 'pan')) && (
+            <div className="mt-1 text-sm text-gray-600">
+              {(formData.documents || []).find(d => d.documentType === 'pan') ? (
+                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'pan'))} className="text-primary-700 underline">Preview uploaded PAN</button>
+              ) : (
+                <span>File selected (will upload after creation)</span>
+              )}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar Card (upload)</label>
+          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'aadhaar')} />
+          {(formData.pendingFiles?.aadhaar || (formData.documents || []).find(d => d.documentType === 'aadhaar')) && (
+            <div className="mt-1 text-sm text-gray-600">
+              {(formData.documents || []).find(d => d.documentType === 'aadhaar') ? (
+                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'aadhaar'))} className="text-primary-700 underline">Preview uploaded Aadhaar</button>
+              ) : <span>File selected (will upload after creation)</span>}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">GST Certificate (upload)</label>
+          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'gst')} />
+          {(formData.pendingFiles?.gst || (formData.documents || []).find(d => d.documentType === 'gst')) && (
+            <div className="mt-1 text-sm text-gray-600">
+              {(formData.documents || []).find(d => d.documentType === 'gst') ? (
+                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'gst'))} className="text-primary-700 underline">Preview uploaded GST</button>
+              ) : <span>File selected (will upload after creation)</span>}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Statement / Cancelled Cheque (upload)</label>
+          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'bank_statement')} />
+          {(formData.pendingFiles?.bank_statement || (formData.documents || []).find(d => d.documentType === 'bank_statement')) && (
+            <div className="mt-1 text-sm text-gray-600">
+              {(formData.documents || []).find(d => d.documentType === 'bank_statement') ? (
+                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'bank_statement'))} className="text-primary-700 underline">Preview uploaded Bank Document</button>
+              ) : <span>File selected (will upload after creation)</span>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Additional documents */}
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Add Additional Document</label>
+        <div className="flex gap-2 items-center">
+          <input type="text" placeholder="Document description" value={newAdditionalLabel} onChange={(e) => setNewAdditionalLabel(e.target.value)} className="px-3 py-2 border rounded-lg w-1/2" />
+          <input type="file" accept="application/pdf,image/*" onChange={(e) => setNewAdditionalFile(e.target.files && e.target.files[0])} />
+          <button type="button" onClick={addAdditionalDocument} className="px-3 py-2 bg-primary-900 text-white rounded-lg">Add</button>
+        </div>
+        {(formData.additionalDocuments || []).length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {(formData.additionalDocuments || []).map((d, idx) => (
+              <li key={d._id || d.id || idx} className="flex items-center justify-between text-sm text-gray-700">
+                <div>
+                  <span className="font-medium">{d.label || d.originalFileName || d.fileName || `Document ${idx + 1}`}</span>
+                  <div className="text-xs text-gray-500">{d.url ? (d.originalFileName || d.fileName) : (d.file && d.file.name)}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => openPreview(d)} className="text-primary-700 underline text-sm">Preview</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Preview modal */}
+      <Modal isOpen={previewOpen} onClose={closePreview} title={previewName} size="lg">
+        {previewUrl && (previewUrl.endsWith('.pdf') || previewUrl.includes('application/pdf')) ? (
+          <iframe src={previewUrl} className="w-full h-[70vh]" title={previewName}></iframe>
+        ) : (
+          <img src={previewUrl} alt={previewName} className="max-w-full max-h-[70vh] mx-auto" />
+        )}
+      </Modal>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">

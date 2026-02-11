@@ -197,7 +197,7 @@ const RelationshipManagers = () => {
     setIsDetailModalOpen(true)
   }
 
-  const handleSave = async (formData) => {
+  const handleSave = async (formData, files = {}) => {
     try {
       if (selectedRM) {
         const id = selectedRM.id || selectedRM._id
@@ -212,7 +212,24 @@ const RelationshipManagers = () => {
         setSelectedRM(null)
         toast.success('Success', 'Relationship manager updated successfully')
       } else {
-        await api.relationshipManagers.create(formData)
+        const response = await api.relationshipManagers.create(formData)
+        const created = response.data || response
+        // upload pending file (if any)
+        try {
+          const rmId = created._id || created.id || created.data?._id
+          const pendingFile = files.pendingFile
+          if (pendingFile) {
+            const fd = new FormData()
+            fd.append('file', pendingFile)
+            fd.append('entityType', 'user')
+            fd.append('entityId', rmId)
+            fd.append('documentType', 'kyc')
+            await api.documents.upload(fd)
+          }
+        } catch (err) {
+          console.error('Error uploading pending files for new relationship manager:', err)
+        }
+
         await fetchRelationshipManagers()
         await fetchFranchises()
         setIsCreateModalOpen(false)
