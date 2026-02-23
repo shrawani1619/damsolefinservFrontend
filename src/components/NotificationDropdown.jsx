@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Bell, Check, X } from 'lucide-react'
 import api from '../services/api'
 
 const NotificationDropdown = ({ isOpen, onClose, unreadCount, setUnreadCount }) => {
+  const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(false)
   const dropdownRef = useRef(null)
@@ -16,150 +18,75 @@ const NotificationDropdown = ({ isOpen, onClose, unreadCount, setUnreadCount }) 
   const fetchNotifications = async () => {
     try {
       setLoading(true)
-      // Try to fetch notifications from API if endpoint exists
-      try {
-        const response = await api.notifications?.getAll?.() || { data: [] }
-        const data = response.data || response || []
-        setNotifications(Array.isArray(data) ? data : [])
-        
-        // Update unread count
-        const unread = data.filter(n => !n.read).length
-        if (setUnreadCount) {
-          setUnreadCount(unread)
-        }
-      } catch (error) {
-        // Silently handle 404 or API not available - this is expected if backend doesn't have notifications yet
-        if (error.message && (error.message.includes('404') || error.message.includes('Not Found'))) {
-          // API endpoint doesn't exist yet, which is fine
-          setNotifications([])
-          if (setUnreadCount) {
-            setUnreadCount(0)
-          }
-        } else {
-          // Other errors - log but don't show to user
-          console.log('Notification API not available:', error.message)
-          setNotifications([])
-        }
-      }
+      const [notifRes, countRes] = await Promise.all([
+        api.notifications?.getAll?.() || { data: [] },
+        api.notifications?.getUnreadCount?.().catch(() => ({ data: { count: 0 } })),
+      ])
+      const data = notifRes.data || notifRes || []
+      setNotifications(Array.isArray(data) ? data : [])
+      const count = countRes?.data?.count ?? data.filter(n => !(n.isRead ?? n.read)).length
+      if (setUnreadCount) setUnreadCount(count)
     } catch (error) {
-      // Fallback error handling
       setNotifications([])
+      if (setUnreadCount) setUnreadCount(0)
     } finally {
       setLoading(false)
     }
   }
 
-  const markAsRead = async (notificationId) => {
+  const markAsRead = async (notificationId, redirectTicketId) => {
     try {
-      // Try to mark notification as read if API exists
       if (api.notifications?.markAsRead) {
-        try {
-          await api.notifications.markAsRead(notificationId)
-        } catch (error) {
-          // Silently ignore 404 errors - API might not be implemented yet
-          if (!error.message?.includes('404') && !error.message?.includes('Not Found')) {
-            console.log('Error marking notification as read:', error.message)
-          }
-        }
+        await api.notifications.markAsRead(notificationId)
       }
-      
-      // Update local state regardless of API call success
       setNotifications(prev =>
         prev.map(n =>
-          n._id === notificationId || n.id === notificationId
-            ? { ...n, read: true }
+          (n._id === notificationId || n.id === notificationId)
+            ? { ...n, isRead: true, read: true }
             : n
         )
       )
-      
-      // Update unread count
-      if (setUnreadCount) {
-        setUnreadCount(prev => Math.max(0, prev - 1))
+      if (setUnreadCount) setUnreadCount((prev) => Math.max(0, prev - 1))
+      if (redirectTicketId) {
+        onClose?.()
+        navigate('/tickets', { state: { openTicketId: redirectTicketId } })
       }
-    } catch (error) {
-      // Fallback - still update local state
+    } catch (err) {
       setNotifications(prev =>
         prev.map(n =>
-          n._id === notificationId || n.id === notificationId
-            ? { ...n, read: true }
+          (n._id === notificationId || n.id === notificationId)
+            ? { ...n, isRead: true, read: true }
             : n
         )
       )
-      if (setUnreadCount) {
-        setUnreadCount(prev => Math.max(0, prev - 1))
+      if (setUnreadCount) setUnreadCount((prev) => Math.max(0, prev - 1))
+      if (redirectTicketId) {
+        onClose?.()
+        navigate('/tickets', { state: { openTicketId: redirectTicketId } })
       }
     }
   }
 
   const markAllAsRead = async () => {
     try {
-      // Try to mark all as read if API exists
-      if (api.notifications?.markAllAsRead) {
-        try {
-          await api.notifications.markAllAsRead()
-        } catch (error) {
-          // Silently ignore 404 errors - API might not be implemented yet
-          if (!error.message?.includes('404') && !error.message?.includes('Not Found')) {
-            console.log('Error marking all notifications as read:', error.message)
-          }
-        }
-      }
-      
-      // Update local state regardless of API call success
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-      
-      // Update unread count
-      if (setUnreadCount) {
-        setUnreadCount(0)
-      }
-    } catch (error) {
-      // Fallback - still update local state
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-      if (setUnreadCount) {
-        setUnreadCount(0)
-      }
+      if (api.notifications?.markAllAsRead) await api.notifications.markAllAsRead()
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true, read: true })))
+      if (setUnreadCount) setUnreadCount(0)
+    } catch {
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true, read: true })))
+      if (setUnreadCount) setUnreadCount(0)
     }
   }
 
-  const deleteNotification = async (notificationId) => {
+  const deleteNotification = async (e, notificationId) => {
+    e?.stopPropagation?.()
+    const notification = notifications.find(n => n._id === notificationId || n.id === notificationId)
+    const wasUnread = notification && !(notification.isRead ?? notification.read)
     try {
-      // Try to delete notification if API exists
-      if (api.notifications?.delete) {
-        try {
-          await api.notifications.delete(notificationId)
-        } catch (error) {
-          // Silently ignore 404 errors - API might not be implemented yet
-          if (!error.message?.includes('404') && !error.message?.includes('Not Found')) {
-            console.log('Error deleting notification:', error.message)
-          }
-        }
-      }
-      
-      // Update local state regardless of API call success
-      const notification = notifications.find(n => n._id === notificationId || n.id === notificationId)
-      const wasUnread = notification && !notification.read
-      
-      setNotifications(prev =>
-        prev.filter(n => n._id !== notificationId && n.id !== notificationId)
-      )
-      
-      // Update unread count if deleted notification was unread
-      if (wasUnread && setUnreadCount) {
-        setUnreadCount(prev => Math.max(0, prev - 1))
-      }
-    } catch (error) {
-      // Fallback - still update local state
-      const notification = notifications.find(n => n._id === notificationId || n.id === notificationId)
-      const wasUnread = notification && !notification.read
-      
-      setNotifications(prev =>
-        prev.filter(n => n._id !== notificationId && n.id !== notificationId)
-      )
-      
-      if (wasUnread && setUnreadCount) {
-        setUnreadCount(prev => Math.max(0, prev - 1))
-      }
-    }
+      if (api.notifications?.delete) await api.notifications.delete(notificationId)
+    } catch {}
+    setNotifications(prev => prev.filter(n => n._id !== notificationId && n.id !== notificationId))
+    if (wasUnread && setUnreadCount) setUnreadCount((prev) => Math.max(0, prev - 1))
   }
 
   if (!isOpen) return null
@@ -205,13 +132,21 @@ const NotificationDropdown = ({ isOpen, onClose, unreadCount, setUnreadCount }) 
         ) : (
           <div className="divide-y divide-gray-100">
             {notifications.map((notification) => {
-              const isUnread = !notification.read
+              const isUnread = !(notification.isRead ?? notification.read)
+              const ticketId = notification.relatedTicketId?._id || notification.relatedTicketId
               return (
                 <div
                   key={notification._id || notification.id}
-                  className={`p-4 hover:bg-gray-50 transition-colors ${
+                  className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
                     isUnread ? 'bg-blue-50/50' : ''
-                  }`}
+                  } ${ticketId ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (ticketId) {
+                      markAsRead(notification._id || notification.id, ticketId)
+                    } else {
+                      markAsRead(notification._id || notification.id)
+                    }
+                  }}
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
@@ -226,11 +161,17 @@ const NotificationDropdown = ({ isOpen, onClose, unreadCount, setUnreadCount }) 
                           {new Date(notification.createdAt).toLocaleString()}
                         </p>
                       )}
+                      {ticketId && (
+                        <p className="text-xs text-primary-900 mt-1 font-medium">Click to view service request →</p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       {isUnread && (
                         <button
-                          onClick={() => markAsRead(notification._id || notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            markAsRead(notification._id || notification.id)
+                          }}
                           className="p-1 hover:bg-gray-200 rounded transition-colors"
                           title="Mark as read"
                         >
@@ -238,7 +179,7 @@ const NotificationDropdown = ({ isOpen, onClose, unreadCount, setUnreadCount }) 
                         </button>
                       )}
                       <button
-                        onClick={() => deleteNotification(notification._id || notification.id)}
+                        onClick={(e) => deleteNotification(e, notification._id || notification.id)}
                         className="p-1 hover:bg-gray-200 rounded transition-colors"
                         title="Delete"
                       >

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, FileText, Calendar, CheckCircle, ChevronDown, ChevronUp, FileDown } from 'lucide-react'
+import { Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, FileText, Calendar, CheckCircle, ChevronDown, ChevronUp, FileDown } from 'lucide-react'
 import IndianRupeeIcon from '../components/IndianRupeeIcon'
 import api from '../services/api'
 import StatusBadge from '../components/StatusBadge'
@@ -16,7 +16,6 @@ const Invoices = () => {
   const userRole = authService.getUser()?.role || ''
   const isAdmin = userRole === 'super_admin'
   const isAccountant = userRole === 'accounts_manager'
-  const canCreateInvoice = isAdmin // Accountants can only generate invoices from leads, not create manually
   const canEditInvoice = isAdmin || isAccountant
   const canDeleteInvoice = isAdmin || isAccountant
   const [invoices, setInvoices] = useState([])
@@ -346,15 +345,6 @@ const Invoices = () => {
             >
               <FileDown className="w-5 h-5" />
               <span>Export to Excel</span>
-            </button>
-          )}
-          {canCreateInvoice && (
-            <button
-              onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Create Invoice</span>
             </button>
           )}
         </div>

@@ -280,6 +280,24 @@ export const api = {
     delete: (id) => apiRequest(`/agents/${id}`, { method: 'DELETE' }),
   },
 
+  // Sub-Agents endpoints (for agents)
+  subAgents: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return apiRequest(`/agents/sub-agents${queryString ? `?${queryString}` : ''}`);
+    },
+    getById: (id) => apiRequest(`/agents/sub-agents/${id}`),
+    create: (data) => apiRequest('/agents/sub-agents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id, data) => apiRequest(`/agents/sub-agents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id) => apiRequest(`/agents/sub-agents/${id}`, { method: 'DELETE' }),
+  },
+
   // Staff endpoints
   staff: {
     getAll: (params = {}) => {
@@ -522,6 +540,46 @@ export const api = {
     delete: (id) => apiRequest(`/banks/${id}`, { method: 'DELETE' }),
   },
 
+  // Form 16 / TDS endpoints
+  form16: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return apiRequest(`/form16${queryString ? `?${queryString}` : ''}`);
+    },
+    getById: (id) => apiRequest(`/form16/${id}`),
+    create: (data) => apiRequest('/form16', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id, data) => apiRequest(`/form16/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id) => apiRequest(`/form16/${id}`, { method: 'DELETE' }),
+  },
+
+  // Banners endpoints
+  banners: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return apiRequest(`/banners${queryString ? `?${queryString}` : ''}`);
+    },
+    getById: (id) => apiRequest(`/banners/${id}`),
+    create: (data) => apiRequest('/banners', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id, data) => apiRequest(`/banners/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    updateStatus: (id, status) => apiRequest(`/banners/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+    delete: (id) => apiRequest(`/banners/${id}`, { method: 'DELETE' }),
+  },
+
   // Lead Forms (dynamic forms per bank)
   leadForms: {
     getByBank: (bankId) => apiRequest(`/lead-forms/bank/${bankId}`),
@@ -632,6 +690,28 @@ export const api = {
       return apiRequest(`/history${queryString ? `?${queryString}` : ''}`);
     },
     getStats: () => apiRequest('/history/stats'),
+  },
+
+  // Tickets endpoints
+  tickets: {
+    getAll: (params = {}) => {
+      const queryString = new URLSearchParams(params).toString();
+      return apiRequest(`/tickets${queryString ? `?${queryString}` : ''}`);
+    },
+    getById: (id) => apiRequest(`/tickets/${id}`),
+    create: (data) => apiRequest('/tickets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id, data) => apiRequest(`/tickets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    resolve: (id, data = {}) => apiRequest(`/tickets/${id}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    getCategories: () => apiRequest('/tickets/categories'),
   },
 
   // Notifications endpoints

@@ -165,14 +165,22 @@ const DisbursementForm = ({
             const updated = { ...prev, [name]: value };
             
             // If commission type is percent and commissionPercent changes, calculate commission amount
-            if (name === 'commissionPercent' && prev.commissionType === 'percent' && value && formData.amount) {
-                const calculatedCommission = (parseFloat(formData.amount) * parseFloat(value)) / 100;
+            if (name === 'commissionPercent' && prev.commissionType === 'percent' && value && prev.amount) {
+                const calculatedCommission = (parseFloat(prev.amount) * parseFloat(value)) / 100;
                 updated.commission = calculatedCommission.toFixed(2);
             }
             // If commission type is percent and amount changes, recalculate commission
             else if (name === 'amount' && prev.commissionType === 'percent' && prev.commissionPercent && value) {
                 const calculatedCommission = (parseFloat(value) * parseFloat(prev.commissionPercent)) / 100;
                 updated.commission = calculatedCommission.toFixed(2);
+            }
+            // If commission type is amt and commission amount changes, calculate commission percentage
+            else if (name === 'commission' && prev.commissionType === 'amt' && value && prev.amount) {
+                const disbursementAmount = parseFloat(prev.amount) || 0;
+                const commissionAmount = parseFloat(value) || 0;
+                if (disbursementAmount > 0 && commissionAmount >= 0) {
+                    updated.commissionPercent = ((commissionAmount / disbursementAmount) * 100).toFixed(2);
+                }
             }
             // Auto-calculate commission if amount changes and lead has commission percentage (legacy behavior)
             else if (name === 'amount' && commissionPercentage > 0 && value && prev.commissionType === 'amt' && !prev.commission) {

@@ -45,17 +45,24 @@ const Header = () => {
   }
 
   useEffect(() => {
-    // Only fetch user if authenticated
-    if (!authService.isAuthenticated()) {
-      return
-    }
+    if (!authService.isAuthenticated()) return
 
-    // Get user from localStorage or fetch from API
+    const fetchUnreadCount = async () => {
+      try {
+        const res = await api.notifications?.getUnreadCount?.()
+        const count = res?.data?.count ?? 0
+        setUnreadCount(count)
+      } catch {
+        setUnreadCount(0)
+      }
+    }
+    fetchUnreadCount()
+    const interval = setInterval(fetchUnreadCount, 30000)
+
     const storedUser = authService.getUser()
     if (storedUser) {
       updateUserState(storedUser)
     } else {
-      // Try to fetch current user from API
       api.auth.getCurrentUser()
         .then((response) => {
           const userData = response.data || response
@@ -69,7 +76,6 @@ const Header = () => {
         })
     }
 
-    // Listen for profile update events
     const handleProfileUpdate = (event) => {
       const userData = event.detail
       if (userData) {
@@ -81,6 +87,7 @@ const Header = () => {
     window.addEventListener('userProfileUpdated', handleProfileUpdate)
 
     return () => {
+      clearInterval(interval)
       window.removeEventListener('userProfileUpdated', handleProfileUpdate)
     }
   }, [])

@@ -15,7 +15,11 @@ import {
   Settings,
   HelpCircle,
   MapPin,
-  History
+  History,
+  Image,
+  Receipt,
+  Ticket,
+  UserCog
 } from 'lucide-react'
 
 const Sidebar = ({ onMinimizeChange }) => {
@@ -37,12 +41,16 @@ const Sidebar = ({ onMinimizeChange }) => {
     { icon: Store, label: 'Franchises', path: '/franchises', roles: ['super_admin', 'regional_manager', 'accounts_manager'] },
     { icon: Users, label: 'Relationship Managers', path: '/relationship-managers', roles: ['super_admin', 'regional_manager', 'accounts_manager'] },
     { icon: UserCheck, label: 'Agents', path: '/agents', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'accounts_manager'] },
+    { icon: UserCog, label: 'Sub Agents', path: '/sub-agents', roles: ['agent'] },
     { icon: Users, label: 'Leads', path: '/leads', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
     { icon: Building2, label: 'Banks', path: '/banks', roles: ['super_admin', 'regional_manager', 'relationship_manager'] },
     { icon: UserCheck, label: 'Accountant Managers', path: '/accountant-managers', roles: ['super_admin'] },
     { icon: FileText, label: 'Invoices', path: '/invoices', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
     { icon: CreditCard, label: 'Payouts', path: '/payouts', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
     { icon: FileText, label: 'Lead Forms', path: '/lead-forms', roles: ['super_admin', 'regional_manager'] },
+    { icon: Image, label: 'Banners', path: '/banners', roles: ['super_admin'] },
+    { icon: Receipt, label: 'Form 16 / TDS', path: '/form16', roles: ['super_admin', 'accounts_manager', 'agent'] },
+    { icon: Ticket, label: 'Service Requests', path: '/tickets', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent'] },
     { icon: History, label: 'History', path: '/history', roles: ['super_admin'] },
   ]
 

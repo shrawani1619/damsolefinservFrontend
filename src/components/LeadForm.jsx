@@ -20,7 +20,8 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
   const isAdmin = userRole === 'super_admin';
   const isAccountant = userRole === 'accounts_manager';
   const isRelationshipManager = userRole === 'relationship_manager';
-  const canSetCommission = isAdmin || isAccountant || isRelationshipManager;
+  const isFranchise = userRole === 'franchise';
+  const canSetCommission = isAdmin || isAccountant || isRelationshipManager || isFranchise;
 
   const [banks, setBanks] = useState([]);
   const [selectedBank, setSelectedBank] = useState(() => {
@@ -56,6 +57,31 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
   // When editing new_lead, RM can assign bank - track it separately for the "Assign Bank" section
   const [assignBankId, setAssignBankId] = useState(lead?.bank?._id || lead?.bank || '');
 
+  // Agent assignment for relationship managers
+  const [agents, setAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const currentUser = authService.getUser();
+  const [selectedAgentId, setSelectedAgentId] = useState(() => {
+    if (lead?.agent) {
+      return lead.agent._id || lead.agent || '';
+    }
+    // Default to 'self' for relationship managers and franchise owners
+    return (isRelationshipManager || isFranchise) ? 'self' : '';
+  });
+  const isSelfSelected = selectedAgentId === 'self';
+  // Allow franchise to set commission even when assigned to self
+  const canSetCommissionForSelf = isFranchise;
+
+  // Sub-agent selection for agents
+  const [subAgents, setSubAgents] = useState([]);
+  const [loadingSubAgents, setLoadingSubAgents] = useState(false);
+  const [selectedSubAgentId, setSelectedSubAgentId] = useState(() => {
+    if (lead?.subAgent) {
+      return lead.subAgent._id || lead.subAgent || '';
+    }
+    return '';
+  });
+
   const [documentTypes, setDocumentTypes] = useState(() => (lead?.documentTypes || []));
   const [uploadedDocs, setUploadedDocs] = useState(() => (lead?.documents || []));
   const [uploading, setUploading] = useState(false);
@@ -74,6 +100,44 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
     };
     load();
   }, []);
+
+  // Fetch agents for all roles (except agents themselves)
+  useEffect(() => {
+    const loadAgents = async () => {
+      if (isAgent || lead) return; // Skip for agents and when editing
+      try {
+        setLoadingAgents(true);
+        const resp = await api.agents.getAll();
+        const agentsData = resp?.data || resp || [];
+        setAgents(Array.isArray(agentsData) ? agentsData : []);
+      } catch (err) {
+        console.error('Failed to load agents', err);
+        setAgents([]);
+      } finally {
+        setLoadingAgents(false);
+      }
+    };
+    loadAgents();
+  }, [isAgent, lead]);
+
+  // Fetch sub-agents for agents when creating leads
+  useEffect(() => {
+    const loadSubAgents = async () => {
+      if (!isAgent || lead) return; // Only for agents creating new leads
+      try {
+        setLoadingSubAgents(true);
+        const resp = await api.subAgents.getAll();
+        const subAgentsData = resp?.data || resp || [];
+        setSubAgents(Array.isArray(subAgentsData) ? subAgentsData : []);
+      } catch (err) {
+        console.error('Failed to load sub-agents', err);
+        setSubAgents([]);
+      } finally {
+        setLoadingSubAgents(false);
+      }
+    };
+    loadSubAgents();
+  }, [isAgent, lead]);
 
   useEffect(() => {
     // when bank/leadType changes, load lead form
@@ -128,7 +192,38 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
   };
 
   const handleStandardChange = (k, v) => {
-    setStandard((p) => ({ ...p, [k]: v }));
+    setStandard((p) => {
+      const updated = { ...p, [k]: v };
+      
+      // Auto-calculate commission amount when percentage is filled
+      if (k === 'commissionPercentage' && v && p.loanAmount) {
+        const loanAmount = parseFloat(p.loanAmount) || 0;
+        const percentage = parseFloat(v) || 0;
+        if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
+          updated.commissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
+        }
+      }
+      
+      // Auto-calculate commission percentage when amount is filled
+      if (k === 'commissionAmount' && v && p.loanAmount) {
+        const loanAmount = parseFloat(p.loanAmount) || 0;
+        const amount = parseFloat(v) || 0;
+        if (loanAmount > 0 && amount >= 0) {
+          updated.commissionPercentage = ((amount / loanAmount) * 100).toFixed(2);
+        }
+      }
+      
+      // Auto-recalculate commission amount when loan amount changes (if percentage exists)
+      if (k === 'loanAmount' && v && p.commissionPercentage) {
+        const loanAmount = parseFloat(v) || 0;
+        const percentage = parseFloat(p.commissionPercentage) || 0;
+        if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
+          updated.commissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
+        }
+      }
+      
+      return updated;
+    });
     if (k === 'bankId') setSelectedBank(v);
   };
 
@@ -166,6 +261,11 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
   const validateAndSubmit = async () => {
     const isNewLead = selectedBank === NEW_LEAD_OPTION || leadFormDef?.leadType === 'new_lead';
 
+    // Agent selection required for relationship managers and franchise owners creating new leads
+    if ((isRelationshipManager || isFranchise) && !lead && (!selectedAgentId || selectedAgentId === '')) {
+      return toast.error('Please select an agent to assign this lead to');
+    }
+
     // Bank required only for bank-type leads
     if (!isNewLead && !standard.bankId) return toast.error('Bank is required');
 
@@ -175,8 +275,9 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
       return toast.error(isNewLead ? 'No New Lead form configured. Ask Admin to set up in Lead Forms.' : 'No Lead Form configured for this bank');
     }
 
-    // Validate commission fields only for bank-type leads (Admin/Accountant/Relationship Manager)
-    if (canSetCommission && !isNewLead) {
+    // Validate commission fields only for bank-type leads (Admin/Accountant/Relationship Manager/Franchise)
+    // But skip validation if RM assigned lead to self (Franchise can set commission even when assigned to self)
+    if (canSetCommission && !isNewLead && !(isRelationshipManager && isSelfSelected && !canSetCommissionForSelf)) {
       // When creating, both fields are required
       if (!lead) {
         if (!standard.commissionPercentage || standard.commissionPercentage === '') {
@@ -258,6 +359,16 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
       documents: (uploadedDocs || []).map((d) => ({ documentType: d.documentType, url: d.url })),
     };
 
+    // Add sub-agent assignment for agents
+    if (isAgent && selectedSubAgentId && selectedSubAgentId !== '') {
+      payload.subAgent = selectedSubAgentId;
+    }
+
+    // Add agent assignment for relationship managers and franchise owners
+    if ((isRelationshipManager || isFranchise) && selectedAgentId && selectedAgentId !== '') {
+      payload.agent = selectedAgentId === 'self' ? currentUser._id || currentUser.id : selectedAgentId;
+    }
+
     // Standard fields for non-agents
     if (!isAgent) {
       payload.customerName = standard.customerName?.trim() || standard.leadName?.trim() || undefined;
@@ -279,7 +390,8 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
     if (!isNewLead) {
       payload.loanType = standard.loanType || formValues?.loanType || undefined;
       payload.loanAmount = (standard.loanAmount || formValues?.loanAmount) ? Number(standard.loanAmount || formValues?.loanAmount) : undefined;
-      if (canSetCommission) {
+      // Only set commission if not assigned to self (except for franchise)
+      if (canSetCommission && !(isRelationshipManager && isSelfSelected && !canSetCommissionForSelf)) {
         payload.commissionPercentage = standard.commissionPercentage ? parseFloat(standard.commissionPercentage) : undefined;
         payload.commissionAmount = standard.commissionAmount ? parseFloat(standard.commissionAmount) : undefined;
       }
@@ -291,7 +403,8 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
       payload.loanAmount = (standard.loanAmount || formValues?.loanAmount) ? Number(standard.loanAmount || formValues?.loanAmount) : undefined;
       payload.loanAccountNo = standard.loanAccountNo || formValues?.loanAccountNo || undefined;
       payload.branch = standard.branch || formValues?.branch || undefined;
-      if (canSetCommission) {
+      // Only set commission if not assigned to self (except for franchise)
+      if (canSetCommission && !(isRelationshipManager && isSelfSelected && !canSetCommissionForSelf)) {
         payload.commissionPercentage = standard.commissionPercentage ? parseFloat(standard.commissionPercentage) : undefined;
         payload.commissionAmount = standard.commissionAmount ? parseFloat(standard.commissionAmount) : undefined;
       }
@@ -341,6 +454,33 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
           ) : (isAgent && leadFormDef) ? (
             <div className="space-y-8 p-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Sub-Agent Selection Dropdown - For agents when creating new leads */}
+                {isAgent && !lead && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Select Sub Agent (Optional)
+                    </label>
+                    <select
+                      value={selectedSubAgentId}
+                      onChange={(e) => setSelectedSubAgentId(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                      disabled={loadingSubAgents}
+                    >
+                      <option value="">-- Select Sub Agent --</option>
+                      {subAgents.map((subAgent) => (
+                        <option key={subAgent._id || subAgent.id} value={subAgent._id || subAgent.id}>
+                          {subAgent.name || subAgent.email || 'Unknown Sub Agent'}
+                        </option>
+                      ))}
+                    </select>
+                    {loadingSubAgents && (
+                      <p className="text-sm text-gray-500 mt-1">Loading sub-agents...</p>
+                    )}
+                    {!loadingSubAgents && subAgents.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-1">No sub-agents available. Create sub-agents from Sub Agents page.</p>
+                    )}
+                  </div>
+                )}
                 {((leadFormDef.agentFields && leadFormDef.agentFields.length > 0) 
                   ? leadFormDef.agentFields 
                   : (leadFormDef.fields || []))
@@ -424,6 +564,34 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
             // Non-agents see standard fields
             <div className="space-y-8 p-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Agent Assignment Dropdown - For all roles except agents when creating new leads */}
+                {!isAgent && !lead && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Assign Agent *
+                    </label>
+                    <select
+                      value={selectedAgentId}
+                      onChange={(e) => setSelectedAgentId(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                      disabled={loadingAgents}
+                    >
+                      <option value="">-- Select Agent --</option>
+                      {(isRelationshipManager || isFranchise) && (
+                        <option value="self">Self ({currentUser?.name || 'Me'})</option>
+                      )}
+                      {agents.map((agent) => (
+                        <option key={agent._id || agent.id} value={agent._id || agent.id}>
+                          {agent.name || agent.email || 'Unknown Agent'}
+                        </option>
+                      ))}
+                    </select>
+                    {loadingAgents && (
+                      <p className="text-sm text-gray-500 mt-1">Loading agents...</p>
+                    )}
+                  </div>
+                )}
+
                 {/* Customer Name */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -618,31 +786,46 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
                   </div>
                   {assignBankId && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Commission Percentage (%)</label>
-                        <input
-                          type="number"
-                          value={standard.commissionPercentage || ''}
-                          onChange={(e) => handleStandardChange('commissionPercentage', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                          placeholder="0.00"
-                          step="0.01"
-                          min="0"
-                          max="100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Commission Amount (₹)</label>
-                        <input
-                          type="number"
-                          value={standard.commissionAmount || ''}
-                          onChange={(e) => handleStandardChange('commissionAmount', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                          placeholder="0.00"
-                          step="0.01"
-                          min="0"
-                        />
-                      </div>
+                      {/* Only show commission fields if not assigned to self (but allow franchise) */}
+                      {!(isRelationshipManager && isSelfSelected && !canSetCommissionForSelf) && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Commission Percentage (%)</label>
+                            <input
+                              type="number"
+                              value={standard.commissionPercentage || ''}
+                              onChange={(e) => handleStandardChange('commissionPercentage', e.target.value)}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                              placeholder="0.00"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Commission Amount (₹)</label>
+                            <input
+                              type="number"
+                              value={standard.commissionAmount || ''}
+                              onChange={(e) => handleStandardChange('commissionAmount', e.target.value)}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                              placeholder="0.00"
+                              step="0.01"
+                              min="0"
+                            />
+                          </div>
+                        </>
+                      )}
+                      {/* Show message when RM assigns to self (but not for franchise) */}
+                      {isRelationshipManager && isSelfSelected && !canSetCommissionForSelf && (
+                        <div className="col-span-2">
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <p className="text-sm text-yellow-800 font-medium">
+                              Commission cannot be set when lead is assigned to self.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">Loan Type</label>
                         <select
@@ -670,7 +853,8 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
               )}
 
               {/* Commission Fields - Only for bank-type leads and non-agents */}
-              {canSetCommission && !isNewLead && !isAgent && (
+              {/* Disabled if RM assigned lead to self (but allow franchise) */}
+              {canSetCommission && !isNewLead && !isAgent && !(isRelationshipManager && isSelfSelected && !canSetCommissionForSelf) && (
                 <div className="border-t pt-6 space-y-4">
                   <h5 className="font-bold text-gray-800">Commission Details</h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -705,6 +889,16 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
                         required={!lead}
                       />
                     </div>
+                  </div>
+                </div>
+              )}
+              {/* Show message when RM assigns to self (but not for franchise) */}
+              {isRelationshipManager && isSelfSelected && !isNewLead && !canSetCommissionForSelf && (
+                <div className="border-t pt-6">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-sm text-yellow-800 font-medium">
+                      Commission cannot be set when lead is assigned to self.
+                    </p>
                   </div>
                 </div>
               )}

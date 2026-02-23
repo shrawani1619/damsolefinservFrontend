@@ -1,0 +1,518 @@
+import { useState, useMemo, useEffect } from 'react'
+import {
+  Plus,
+  Search,
+  Filter,
+  Eye,
+  Edit,
+  Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  FileText,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  FileDown,
+} from 'lucide-react'
+import api from '../services/api'
+import Modal from '../components/Modal'
+import Form16Form from '../components/Form16Form'
+import StatCard from '../components/StatCard'
+import ConfirmModal from '../components/ConfirmModal'
+import { toast } from '../services/toastService'
+import { exportToExcel } from '../utils/exportExcel'
+
+const Form16 = () => {
+  const [forms, setForms] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [selectedForm, setSelectedForm] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, form: null })
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
+
+  useEffect(() => {
+    fetchForms()
+  }, [])
+
+  const fetchForms = async () => {
+    try {
+      setLoading(true)
+      const response = await api.form16.getAll()
+      const data = response.data || response || []
+      setForms(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error fetching Form 16:', error)
+      setForms([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const totalForms = forms.length
+
+  const filteredForms = useMemo(() => {
+    if (!forms || forms.length === 0) return []
+
+    return forms.filter((form) => {
+      if (!form) return false
+      const searchLower = searchTerm.toLowerCase()
+      const matchesSearch =
+        (form.fileName && form.fileName.toLowerCase().includes(searchLower)) ||
+        (form.attachmentName && form.attachmentName.toLowerCase().includes(searchLower)) ||
+        (form.formType && form.formType.toLowerCase().includes(searchLower))
+      const formDate = form.attachmentDate
+        ? new Date(form.attachmentDate).toISOString().slice(0, 10)
+        : ''
+      const matchesDate = !dateFilter || formDate === dateFilter
+      return matchesSearch && matchesDate
+    })
+  }, [forms, searchTerm, dateFilter])
+
+  const sortedForms = useMemo(() => {
+    if (!sortConfig.key) return filteredForms
+
+    return [...filteredForms].sort((a, b) => {
+      if (!a || !b) return 0
+      let aValue = a[sortConfig.key]
+      let bValue = b[sortConfig.key]
+      if (aValue == null) aValue = ''
+      if (bValue == null) bValue = ''
+      if (sortConfig.key === 'attachmentDate') {
+        aValue = new Date(aValue).getTime()
+        bValue = new Date(bValue).getTime()
+      }
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        aValue = aValue.toLowerCase()
+        bValue = bValue.toLowerCase()
+      }
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [filteredForms, sortConfig])
+
+  const hasActiveFilters = searchTerm !== '' || dateFilter !== ''
+  const clearFilters = () => {
+    setSearchTerm('')
+    setDateFilter('')
+  }
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }))
+  }
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return <ArrowUpDown className="w-4 h-4 text-gray-400" />
+    return sortConfig.direction === 'asc' ? (
+      <ArrowUp className="w-4 h-4 text-primary-900" />
+    ) : (
+      <ArrowDown className="w-4 h-4 text-primary-900" />
+    )
+  }
+
+  const handleCreate = () => {
+    setSelectedForm(null)
+    setIsCreateModalOpen(true)
+  }
+
+  const handleEdit = (form) => {
+    setSelectedForm(form)
+    setIsEditModalOpen(true)
+  }
+
+  const handleView = (form) => {
+    setSelectedForm(form)
+    setIsDetailModalOpen(true)
+  }
+
+  const handleSave = async (formData) => {
+    try {
+      if (selectedForm) {
+        const id = selectedForm.id || selectedForm._id
+        if (!id) {
+          toast.error('Error', 'Record ID is missing')
+          return
+        }
+        await api.form16.update(id, formData)
+        await fetchForms()
+        setIsEditModalOpen(false)
+        toast.success('Success', 'Form 16 updated successfully')
+      } else {
+        const response = await api.form16.create(formData)
+        if (response.success || response.data) {
+          await fetchForms()
+          setIsCreateModalOpen(false)
+          toast.success('Success', 'Form 16 created successfully')
+        } else {
+          throw new Error('Invalid response from server')
+        }
+      }
+      setSelectedForm(null)
+    } catch (error) {
+      console.error('Error saving:', error)
+      toast.error('Error', error.message || 'Failed to save')
+    }
+  }
+
+  const handleDeleteClick = (form) => {
+    setConfirmDelete({ isOpen: true, form })
+  }
+
+  const handleDeleteConfirm = async () => {
+    const form = confirmDelete.form
+    const id = form.id || form._id
+    if (!id) {
+      toast.error('Error', 'Record ID is missing')
+      return
+    }
+    try {
+      await api.form16.delete(id)
+      await fetchForms()
+      toast.success('Success', 'Form 16 record deleted successfully')
+      setConfirmDelete({ isOpen: false, form: null })
+    } catch (error) {
+      console.error('Error deleting:', error)
+      toast.error('Error', error.message || 'Failed to delete')
+    }
+  }
+
+  const formatDate = (d) => {
+    if (!d) return 'N/A'
+    return new Date(d).toLocaleDateString()
+  }
+
+  return (
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Form 16 / TDS</h1>
+          <p className="text-sm text-gray-600 mt-1">Manage Form 16 and TDS documents</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const rows = sortedForms.map((f) => ({
+                'Attachment Name': f.attachmentName || 'N/A',
+                'Attachment Date': formatDate(f.attachmentDate),
+                'File Name': f.fileName || 'N/A',
+                'Created': formatDate(f.createdAt),
+              }))
+              exportToExcel(rows, `form16_export_${Date.now()}`, 'Form 16 / TDS')
+              toast.success('Export', `Exported ${rows.length} records to Excel`)
+            }}
+            disabled={sortedForms.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FileDown className="w-5 h-5" />
+            <span>Export to Excel</span>
+          </button>
+          <button
+            onClick={handleCreate}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Create Form 16</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <StatCard title="Total Records" value={totalForms} icon={FileText} color="blue" />
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+        >
+          <span className="flex items-center gap-2 font-medium text-gray-900">
+            <Filter className="w-5 h-5 text-gray-500" />
+            Filter options
+            {hasActiveFilters && (
+              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">
+                Active
+              </span>
+            )}
+          </span>
+          {filtersOpen ? (
+            <ChevronUp className="w-5 h-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-500" />
+          )}
+        </button>
+        {filtersOpen && (
+          <div className="border-t border-gray-200 p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Attachment name, file name, form type..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Attachment Date
+                </label>
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+            </div>
+            {hasActiveFilters && (
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-sm text-primary-600 hover:text-primary-800 font-medium"
+                >
+                  Clear all filters
+                </button>
+                <span className="text-sm text-gray-500">
+                  Showing {filteredForms.length} of {forms.length} records
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('attachmentDate')}
+                >
+                  <div className="flex items-center gap-2">
+                    Attachment Date
+                    {getSortIcon('attachmentDate')}
+                  </div>
+                </th>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('attachmentName')}
+                >
+                  <div className="flex items-center gap-2">
+                    Attachment Name
+                    {getSortIcon('attachmentName')}
+                  </div>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  File Name
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
+                <tr>
+                  <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                    Loading...
+                  </td>
+                </tr>
+              ) : sortedForms.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                    No records found
+                  </td>
+                </tr>
+              ) : (
+                sortedForms.map((form) => (
+                  <tr key={form.id || form._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-900">
+                          {formatDate(form.attachmentDate)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">
+                        {form.attachmentName || 'N/A'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">
+                        {form.fileName || 'N/A'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleView(form)}
+                          className="text-primary-900 hover:text-primary-800 p-1"
+                          title="View"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEdit(form)}
+                          className="text-gray-600 hover:text-gray-900 p-1"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(form)}
+                          className="text-red-600 hover:text-red-900 p-1"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {sortedForms.length > 0 && (
+          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
+            <p className="text-sm text-gray-600">
+              Showing <span className="font-medium">{sortedForms.length}</span> of{' '}
+              <span className="font-medium">{sortedForms.length}</span> records
+            </p>
+          </div>
+        )}
+      </div>
+
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          fetchForms()
+        }}
+        title="Create Form 16"
+      >
+        <Form16Form
+          onSave={handleSave}
+          onClose={() => {
+            setIsCreateModalOpen(false)
+            fetchForms()
+          }}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setSelectedForm(null)
+          fetchForms()
+        }}
+        title="Edit Form 16"
+      >
+        <Form16Form
+          form16={selectedForm}
+          onSave={handleSave}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            setSelectedForm(null)
+            fetchForms()
+          }}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false)
+          setSelectedForm(null)
+        }}
+        title="Form 16 Details"
+        size="md"
+      >
+        {selectedForm && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-500">Attachment Date</label>
+                <p className="mt-1 text-sm text-gray-900">
+                  {formatDate(selectedForm.attachmentDate)}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Attachment Name</label>
+                <p className="mt-1 text-sm text-gray-900">
+                  {selectedForm.attachmentName || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">File Name</label>
+                <p className="mt-1 text-sm text-gray-900">
+                  {selectedForm.fileName || 'N/A'}
+                </p>
+              </div>
+            </div>
+            {selectedForm.attachment && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Attachment</label>
+                <div className="mt-2">
+                  <a
+                    href={selectedForm.attachment}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-600 hover:text-primary-800 underline text-sm"
+                  >
+                    View / Download
+                  </a>
+                </div>
+              </div>
+            )}
+            <div className="pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setIsDetailModalOpen(false)
+                  handleEdit(selectedForm)
+                }}
+                className="w-full px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+              >
+                Edit
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmModal
+        isOpen={confirmDelete.isOpen}
+        onClose={() => setConfirmDelete({ isOpen: false, form: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Form 16"
+        message="Are you sure you want to delete this Form 16 / TDS record? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
+    </div>
+  )
+}
+
+export default Form16
+
