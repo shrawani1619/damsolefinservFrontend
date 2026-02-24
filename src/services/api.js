@@ -726,6 +726,22 @@ export const api = {
     delete: (id) => apiRequest(`/notifications/${id}`, { method: 'DELETE' }),
     getUnreadCount: () => apiRequest('/notifications/unread-count'),
   },
+
+  // Franchise Commission Limits endpoints (admin only)
+  franchiseCommissionLimits: {
+    getAll: () => apiRequest('/franchise-commission-limits'),
+    getById: (id) => apiRequest(`/franchise-commission-limits/${id}`),
+    getByBank: (bankId) => apiRequest(`/franchise-commission-limits/bank/${bankId}`),
+    create: (data) => apiRequest('/franchise-commission-limits', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id, data) => apiRequest(`/franchise-commission-limits/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id) => apiRequest(`/franchise-commission-limits/${id}`, { method: 'DELETE' }),
+  },
 };
 
 export default api;

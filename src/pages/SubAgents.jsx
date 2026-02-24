@@ -20,25 +20,99 @@ const SubAgents = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, subAgent: null })
 
-  const userRole = authService.getUser()?.role
+  const [userRole, setUserRole] = useState(authService.getUser()?.role)
   const isAgent = userRole === 'agent'
+  const canAccess = isAgent
+
+  // Refresh user data on mount to ensure role is up-to-date
+  useEffect(() => {
+    const refreshUserData = async () => {
+      try {
+        const currentUser = await api.auth.getCurrentUser()
+        const userData = currentUser?.data || currentUser
+        if (userData) {
+          authService.setUser(userData)
+          setUserRole(userData.role)
+        }
+      } catch (error) {
+        console.error('Error refreshing user data on mount:', error)
+      }
+    }
+    refreshUserData()
+  }, [])
 
   useEffect(() => {
-    if (isAgent) {
+    if (canAccess) {
       fetchSubAgents()
+    } else {
+      setLoading(false)
     }
-  }, [isAgent])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, userRole])
 
   const fetchSubAgents = async () => {
     try {
       setLoading(true)
+      
+      // Log current user role for debugging
+      const currentUser = authService.getUser()
+      console.log('Current user from localStorage:', currentUser)
+      console.log('User role:', currentUser?.role)
+      
       const response = await api.subAgents.getAll()
       const subAgentsData = response.data || response || []
       setSubAgents(Array.isArray(subAgentsData) ? subAgentsData : [])
     } catch (error) {
       console.error('Error fetching sub-agents:', error)
+      console.error('Error message:', error.message)
       setSubAgents([])
-      toast.error('Error', 'Failed to fetch sub-agents')
+      
+      // If 403 error, try to refresh user data from server
+      if (error.message && (error.message.includes('Insufficient permissions') || error.message.includes('403'))) {
+        try {
+          console.log('Attempting to refresh user data from server...')
+          const currentUserResponse = await api.auth.getCurrentUser()
+          const userData = currentUserResponse?.data || currentUserResponse
+          console.log('User data from server:', userData)
+          
+          if (userData) {
+            authService.setUser(userData)
+            const updatedRole = userData.role
+            console.log('Updated role from server:', updatedRole)
+            
+            if (updatedRole !== 'agent') {
+              toast.error(
+                'Access Denied', 
+                `Your account role (${updatedRole}) does not have permission to access sub-agents. Only agents can access this page.`
+              )
+              return
+            } else {
+              // Role is correct, retry the request
+              console.log('Role is correct, retrying request...')
+              const retryResponse = await api.subAgents.getAll()
+              const retryData = retryResponse.data || retryResponse || []
+              setSubAgents(Array.isArray(retryData) ? retryData : [])
+              return
+            }
+          }
+        } catch (refreshError) {
+          console.error('Error refreshing user data:', refreshError)
+          // Show the original error message which should contain role info
+          const errorMsg = error.message || 'Failed to fetch sub-agents'
+          const roleInfo = errorMsg.includes('Your role:') ? errorMsg : `Your current role: ${currentUser?.role || 'unknown'}`
+          toast.error('Access Denied', roleInfo)
+          return
+        }
+      }
+      
+      // Show error with role information if available
+      const errorMsg = error.message || 'Failed to fetch sub-agents'
+      const currentUser = authService.getUser()
+      if (errorMsg.includes('Your role:')) {
+        toast.error('Access Denied', errorMsg)
+      } else {
+        toast.error('Error', `${errorMsg}. Your role: ${currentUser?.role || 'unknown'}`)
+      }
     } finally {
       setLoading(false)
     }
@@ -164,11 +238,14 @@ const SubAgents = () => {
     { value: 'inactive', label: 'Inactive' },
   ]
 
-  if (!isAgent) {
+  if (!canAccess) {
     return (
       <div className="space-y-6 w-full max-w-full overflow-x-hidden">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <p className="text-red-800 font-medium">Access Denied. Only agents can access this page.</p>
+          <p className="text-red-800 font-medium">
+            Access Denied. Only agents can access this page.
+            {userRole && <span className="block mt-2 text-sm">Your current role: {userRole}</span>}
+          </p>
         </div>
       </div>
     )

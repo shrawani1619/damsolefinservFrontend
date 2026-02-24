@@ -39,6 +39,7 @@ const Dashboard = () => {
   const [loanDistribution, setLoanDistribution] = useState([])
   const [leadConversionFunnel, setLeadConversionFunnel] = useState([])
   const [selectedLoanSegmentIndex, setSelectedLoanSegmentIndex] = useState(null)
+  const [funnelFilter, setFunnelFilter] = useState('monthly') // 'weekly', 'monthly', 'yearly'
 
   const [loading, setLoading] = useState(true)
 
@@ -47,7 +48,9 @@ const Dashboard = () => {
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true)
-      const params = {}
+      const params = {
+        funnelPeriod: funnelFilter, // Add funnel filter parameter
+      }
 
       let dashboardData
       try {
@@ -148,7 +151,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false)
     }
-  }, [userRole])
+  }, [userRole, funnelFilter])
 
   useEffect(() => {
     fetchDashboardData()
@@ -194,7 +197,7 @@ const Dashboard = () => {
     }
   }
 
-  const { totalLeads, totalAgents, totalInvoices, totalRevenue, totalLoanAmount } = stats
+  const { totalLeads, totalAgents, totalRevenue, totalLoanAmount } = stats
   const isAgent = userRole === 'agent'
   const isAccountant = userRole === 'accounts_manager'
 
@@ -380,9 +383,9 @@ const Dashboard = () => {
               color="green"
             />
             <StatCard
-              title="Total Invoices"
-              value={totalInvoices}
-              icon={FileText}
+              title="Total Amount"
+              value={`₹${(totalLoanAmount / 100000).toFixed(1)}L`}
+              icon={IndianRupeeIcon}
               color="orange"
             />
             <StatCard
@@ -455,7 +458,41 @@ const Dashboard = () => {
                 )}
               </div>
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Lead Conversion Funnel</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-900">Lead Conversion Funnel</h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setFunnelFilter('weekly')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        funnelFilter === 'weekly'
+                          ? 'bg-primary-900 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Weekly
+                    </button>
+                    <button
+                      onClick={() => setFunnelFilter('monthly')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        funnelFilter === 'monthly'
+                          ? 'bg-primary-900 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      onClick={() => setFunnelFilter('yearly')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        funnelFilter === 'yearly'
+                          ? 'bg-primary-900 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Yearly
+                    </button>
+                  </div>
+                </div>
                 {leadConversionFunnel.length > 0 ? (
                   <div className="space-y-2 max-w-md">
                     {leadConversionFunnel.map((stage) => {

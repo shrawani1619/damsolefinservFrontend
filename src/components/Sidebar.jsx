@@ -19,7 +19,8 @@ import {
   Image,
   Receipt,
   Ticket,
-  UserCog
+  UserCog,
+  Percent
 } from 'lucide-react'
 
 const Sidebar = ({ onMinimizeChange }) => {
@@ -51,7 +52,8 @@ const Sidebar = ({ onMinimizeChange }) => {
     { icon: Image, label: 'Banners', path: '/banners', roles: ['super_admin'] },
     { icon: Receipt, label: 'Form 16 / TDS', path: '/form16', roles: ['super_admin', 'accounts_manager', 'agent'] },
     { icon: Ticket, label: 'Service Requests', path: '/tickets', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent'] },
-    { icon: History, label: 'History', path: '/history', roles: ['super_admin'] },
+    { icon: History, label: 'History', path: '/history', roles: ['super_admin', 'accounts_manager'] },
+    { icon: Percent, label: 'Franchise Commission', path: '/franchise-commission', roles: ['super_admin', 'accounts_manager'] },
   ]
 
   const menuItems = allMenuItems.filter(item => item.roles.includes(userRole))

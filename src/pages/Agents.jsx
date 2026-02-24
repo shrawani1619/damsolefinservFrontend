@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, Users, ChevronDown, ChevronUp, FileDown, UserCheck } from 'lucide-react'
+import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, Users, ChevronDown, ChevronUp, UserCheck } from 'lucide-react'
 import IndianRupeeIcon from '../components/IndianRupeeIcon'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
@@ -9,7 +9,6 @@ import AgentForm from '../components/AgentForm'
 import StatCard from '../components/StatCard'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
-import { exportToExcel } from '../utils/exportExcel'
 
 const Agents = () => {
   const [agents, setAgents] = useState([])
@@ -118,7 +117,7 @@ const Agents = () => {
   const getAgentLeadStats = (agentId) => {
     if (!agentId) {
       console.log('⚠️ getAgentLeadStats: No agentId provided')
-      return { total: 0, active: 0, completed: 0, commission: 0 }
+      return { total: 0, active: 0, completed: 0, commission: 0, totalAmount: 0 }
     }
 
     console.log('🔍 DEBUG: getAgentLeadStats called for agentId:', agentId)
@@ -165,9 +164,14 @@ const Agents = () => {
       return sum + (invoice.commissionAmount || invoice.netPayable || invoice.amount || 0)
     }, 0)
 
-    console.log('🔍 DEBUG: Final stats:', { total, active, completed, commission })
+    // Calculate total amount from all leads
+    const totalAmount = agentLeads.reduce((sum, lead) => {
+      return sum + (lead.loanAmount || 0)
+    }, 0)
 
-    return { total, active, completed, commission }
+    console.log('🔍 DEBUG: Final stats:', { total, active, completed, commission, totalAmount })
+
+    return { total, active, completed, commission, totalAmount }
   }
 
   // Calculate statistics
@@ -220,6 +224,30 @@ const Agents = () => {
       let aValue = a[sortConfig.key]
       let bValue = b[sortConfig.key]
 
+      // Handle calculated fields that need stats
+      const calculatedFields = ['totalLeads', 'activeLeads', 'completedLoans', 'commission', 'totalAmount']
+      if (calculatedFields.includes(sortConfig.key)) {
+        const aStats = getAgentLeadStats(a.id || a._id)
+        const bStats = getAgentLeadStats(b.id || b._id)
+        
+        if (sortConfig.key === 'totalLeads') {
+          aValue = aStats.total
+          bValue = bStats.total
+        } else if (sortConfig.key === 'activeLeads') {
+          aValue = aStats.active
+          bValue = bStats.active
+        } else if (sortConfig.key === 'completedLoans') {
+          aValue = aStats.completed
+          bValue = bStats.completed
+        } else if (sortConfig.key === 'commission') {
+          aValue = aStats.commission
+          bValue = bStats.commission
+        } else if (sortConfig.key === 'totalAmount') {
+          aValue = aStats.totalAmount
+          bValue = bStats.totalAmount
+        }
+      }
+
       // Handle null/undefined values
       if (aValue == null) aValue = ''
       if (bValue == null) bValue = ''
@@ -237,7 +265,7 @@ const Agents = () => {
       }
       return 0
     })
-  }, [filteredAgents, sortConfig])
+  }, [filteredAgents, sortConfig, leads, invoices])
 
   const handleSort = (key) => {
     setSortConfig((prev) => ({
@@ -484,39 +512,6 @@ const Agents = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              const rows = sortedAgents.map((agent) => {
-                const agentId = agent.id || agent._id
-                const stats = getAgentLeadStats(agentId)
-                const franchiseId = agent.managedByModel === 'Franchise'
-                  ? (agent.managedBy?._id || agent.managedBy?.id || agent.managedBy)
-                  : (agent.franchise?._id || agent.franchise?.id || agent.franchise)
-                const row = {
-                  Name: agent.name || 'N/A',
-                  Email: agent.email || 'N/A',
-                  Phone: agent.mobile || agent.phone || 'N/A',
-                  'Total Leads': stats.total,
-                  'Active Leads': stats.active,
-                  Completed: stats.completed,
-                  Commission: stats.commission,
-                  Status: agent.status || 'N/A',
-                }
-                if (!hideAssociated) {
-                  row.Associated = getAssociatedName(agent)
-                }
-                return row
-              })
-              exportToExcel(rows, `agents_export_${Date.now()}`, 'Agents')
-              toast.success('Export', `Exported ${rows.length} agents to Excel`)
-            }}
-            disabled={sortedAgents.length === 0}
-            title="Export currently filtered data to Excel"
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FileDown className="w-5 h-5" />
-            <span>Export to Excel</span>
-          </button>
-          <button
             onClick={handleCreate}
             className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
           >
@@ -699,6 +694,15 @@ const Agents = () => {
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('totalAmount')}
+                >
+                  <div className="flex items-center gap-2">
+                    Total Amount
+                    {getSortIcon('totalAmount')}
+                  </div>
+                </th>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('status')}
                 >
                   <div className="flex items-center gap-2">
@@ -714,13 +718,13 @@ const Agents = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={hideAssociated ? "9" : "10"} className="px-6 py-8 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
               ) : sortedAgents.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={hideAssociated ? "9" : "10"} className="px-6 py-8 text-center text-gray-500">
                     No agents found
                   </td>
                 </tr>
@@ -760,6 +764,11 @@ const Agents = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
                           ₹{leadStats.commission.toLocaleString()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          ₹{leadStats.totalAmount.toLocaleString()}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

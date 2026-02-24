@@ -49,8 +49,8 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
       remarks: lead?.remarks || leadFormValues.remark || leadFormValues.remarks || '',
       smBmEmail: lead?.smBmEmail || leadFormValues.smBmEmail || '',
       smBmMobile: lead?.smBmMobile || leadFormValues.smBmMobile || '',
-      commissionPercentage: lead?.commissionPercentage || '',
-      commissionAmount: lead?.commissionAmount || '',
+      commissionPercentage: lead?.commissionPercentage !== undefined && lead?.commissionPercentage !== null ? lead.commissionPercentage : '',
+      commissionAmount: lead?.commissionAmount !== undefined && lead?.commissionAmount !== null ? lead.commissionAmount : '',
     };
   });
 
@@ -298,6 +298,40 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
           return toast.error('Commission Amount must be a positive number');
         }
       }
+
+      // Validate franchise commission limits (only for franchise users)
+      if (isFranchise && standard.bankId) {
+        try {
+          const limitResponse = await api.franchiseCommissionLimits.getByBank(standard.bankId);
+          const commissionLimit = limitResponse.data;
+
+          if (commissionLimit) {
+            let exceedsLimit = false;
+            let errorMessage = '';
+
+            if (commissionLimit.limitType === 'percentage') {
+              const franchisePercentage = standard.commissionPercentage ? parseFloat(standard.commissionPercentage) : 0;
+              if (franchisePercentage > commissionLimit.maxCommissionValue) {
+                exceedsLimit = true;
+                errorMessage = `Commission cannot exceed Admin maximum limit of ${commissionLimit.maxCommissionValue}%`;
+              }
+            } else if (commissionLimit.limitType === 'amount') {
+              const franchiseAmount = standard.commissionAmount ? parseFloat(standard.commissionAmount) : 0;
+              if (franchiseAmount > commissionLimit.maxCommissionValue) {
+                exceedsLimit = true;
+                errorMessage = `Commission cannot exceed Admin maximum limit of ₹${commissionLimit.maxCommissionValue.toLocaleString()}`;
+              }
+            }
+
+            if (exceedsLimit) {
+              return toast.error('Commission Limit Exceeded', errorMessage);
+            }
+          }
+        } catch (error) {
+          console.error('Error checking franchise commission limit:', error);
+          // Don't block submission if limit check fails, but log the error
+        }
+      }
     }
 
     // For agents: If leadFormDef exists, validate required fields
@@ -392,8 +426,12 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
       payload.loanAmount = (standard.loanAmount || formValues?.loanAmount) ? Number(standard.loanAmount || formValues?.loanAmount) : undefined;
       // Only set commission if not assigned to self (except for franchise)
       if (canSetCommission && !(isRelationshipManager && isSelfSelected && !canSetCommissionForSelf)) {
-        payload.commissionPercentage = standard.commissionPercentage ? parseFloat(standard.commissionPercentage) : undefined;
-        payload.commissionAmount = standard.commissionAmount ? parseFloat(standard.commissionAmount) : undefined;
+        payload.commissionPercentage = (standard.commissionPercentage !== undefined && standard.commissionPercentage !== null && standard.commissionPercentage !== '') 
+          ? parseFloat(standard.commissionPercentage) 
+          : (standard.commissionPercentage === 0 ? 0 : undefined);
+        payload.commissionAmount = (standard.commissionAmount !== undefined && standard.commissionAmount !== null && standard.commissionAmount !== '') 
+          ? parseFloat(standard.commissionAmount) 
+          : (standard.commissionAmount === 0 ? 0 : undefined);
       }
     } else if (lead && isNewLead && assignBankId) {
       // RM editing new_lead: allow adding bank and bank-specific fields
@@ -405,8 +443,12 @@ export default function LeadForm({ lead = null, onSave, onClose }) {
       payload.branch = standard.branch || formValues?.branch || undefined;
       // Only set commission if not assigned to self (except for franchise)
       if (canSetCommission && !(isRelationshipManager && isSelfSelected && !canSetCommissionForSelf)) {
-        payload.commissionPercentage = standard.commissionPercentage ? parseFloat(standard.commissionPercentage) : undefined;
-        payload.commissionAmount = standard.commissionAmount ? parseFloat(standard.commissionAmount) : undefined;
+        payload.commissionPercentage = (standard.commissionPercentage !== undefined && standard.commissionPercentage !== null && standard.commissionPercentage !== '') 
+          ? parseFloat(standard.commissionPercentage) 
+          : (standard.commissionPercentage === 0 ? 0 : undefined);
+        payload.commissionAmount = (standard.commissionAmount !== undefined && standard.commissionAmount !== null && standard.commissionAmount !== '') 
+          ? parseFloat(standard.commissionAmount) 
+          : (standard.commissionAmount === 0 ? 0 : undefined);
       }
     }
 

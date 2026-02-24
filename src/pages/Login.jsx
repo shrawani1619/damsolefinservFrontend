@@ -171,15 +171,6 @@ const Login = () => {
                 )}
               </button>
             </div>
-
-            <div className="text-center pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                Don't have an account?{' '}
-                <a href="/signup" className="font-semibold text-primary-900 hover:text-primary-800 transition-colors">
-                  Sign up
-                </a>
-              </p>
-            </div>
           </form>
         </div>
       </div>

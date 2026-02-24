@@ -215,8 +215,12 @@ const AccountantLeads = () => {
                 bank: formData.bankId || formData.bank,
                 formValues: formData.formValues || undefined,
                 leadForm: formData.leadForm || undefined,
-                commissionPercentage: formData.commissionPercentage ? parseFloat(formData.commissionPercentage) : undefined,
-                commissionAmount: formData.commissionAmount ? parseFloat(formData.commissionAmount) : undefined,
+                commissionPercentage: (formData.commissionPercentage !== undefined && formData.commissionPercentage !== null && formData.commissionPercentage !== '') 
+                    ? parseFloat(formData.commissionPercentage) 
+                    : (formData.commissionPercentage === 0 ? 0 : undefined),
+                commissionAmount: (formData.commissionAmount !== undefined && formData.commissionAmount !== null && formData.commissionAmount !== '') 
+                    ? parseFloat(formData.commissionAmount) 
+                    : (formData.commissionAmount === 0 ? 0 : undefined),
             };
 
             // Remove undefined values
@@ -718,7 +722,7 @@ const AccountantLeads = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-600 text-right font-mono">
-                                                    {formatCurrency(lead.commissionAmount)}
+                                                    {formatCurrency(lead.commissionAmount || 0)}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                     {lead.agentName || lead.agent?.name || 'N/A'}
