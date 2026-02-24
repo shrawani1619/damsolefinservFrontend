@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import API_BASE_URL from '../config/api'
 import Modal from '../components/Modal'
 import { toast } from '../services/toastService'
 import { authService } from '../services/auth.service'
@@ -100,7 +101,7 @@ const RaiseTicketForm = ({ onSuccess, onCancel }) => {
         formData.append('attachment', attachment)
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/tickets`, {
+      const response = await fetch(`${API_BASE_URL}/tickets`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${authService.getToken()}`,
