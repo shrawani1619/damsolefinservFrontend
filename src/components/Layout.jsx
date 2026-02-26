@@ -16,6 +16,9 @@ const Layout = () => {
             <Outlet />
           </div>
         </main>
+        <footer className="w-full border-t border-gray-200 bg-white px-6 py-3 text-xs text-gray-500 flex items-center justify-center">
+          <span>Copyright @2026. AiDamsole Agile Services Pvt Ltd.</span>
+        </footer>
       </div>
     </div>
   )

@@ -127,7 +127,7 @@ const Signup = () => {
         {/* Logo and Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <img src="/logo.webp" alt="YKC FINSERV" className="h-16 w-auto object-contain" />
+            <img src="/damsole.png" alt="YKC FINSERV" className="h-16 w-auto object-contain" />
           </div>
           <h2 className="text-3xl font-bold text-primary-900 mb-2">
             Create Your Account

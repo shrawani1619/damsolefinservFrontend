@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
-import logo from '/logo.webp'
+import logo from '/damsole.png'
 
 const Login = () => {
   const [formData, setFormData] = useState({

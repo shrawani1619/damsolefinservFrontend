@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import logo from '/logo.webp'
+import logo from '/damsole.png'
 import { authService } from '../services/auth.service'
 import {
   LayoutDashboard,
@@ -67,8 +67,12 @@ const Sidebar = ({ onMinimizeChange }) => {
       {/* Minimize Toggle */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         {!isMinimized && (
-          <div >
-            <img src={logo} alt="YKC CRM" className='boject-contain' />
+          <div>
+            <img
+              src={logo}
+              alt="YKC CRM"
+              className="h-8.0 w-auto object-contain"
+            />
           </div>
         )}
         <button
