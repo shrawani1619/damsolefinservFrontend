@@ -33,13 +33,12 @@ const Login = () => {
     return roleRoutes[role] || '/'
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const performLogin = async (email, password) => {
     setError('')
     setLoading(true)
 
     try {
-      const response = await api.auth.login(formData)
+      const response = await api.auth.login({ email, password })
 
       // Backend returns: { success: true, data: user, token }
       if (response.success && response.token) {
@@ -74,6 +73,50 @@ const Login = () => {
     }
   }
 
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    await performLogin(formData.email, formData.password)
+  }
+
+  const handleQuickLogin = async (role) => {
+    // Demo credentials per role (must exist in backend)
+    // These emails & passwords match the seeded users in the database
+    const demoCredentials = {
+      admin: {
+        email: 'admin@gmail.com',
+        password: 'admin@123',
+      },
+      regional_manager: {
+        email: 'regionalmanager@damsole.com',
+        password: 'regionalmanager@123',
+      },
+      relationship_manager: {
+        email: 'officestaff@damsole.com',
+        password: 'staff@123',
+      },
+      franchise: {
+        email: 'franchiseowner@damsole.com',
+        password: 'franchiseowner@123',
+      },
+      agent: {
+        email: 'agent@damsole.com',
+        password: 'agent@123',
+      },
+      accounts_manager: {
+        email: 'accountsmanager@damsole.com',
+        password: 'accountsmanager@123',
+      },
+    }
+
+    const credentials = demoCredentials[role] || demoCredentials.admin
+
+    // Update form fields for visual feedback
+    setFormData(credentials)
+
+    // Perform login with demo credentials
+    await performLogin(credentials.email, credentials.password)
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-accent-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
@@ -86,7 +129,7 @@ const Login = () => {
             Welcome Back
           </h2>
           <p className="text-sm text-gray-600">
-            Sign in to your YKC FINSERV account
+            Sign in to your DAMSOLE FINSERV account
           </p>
         </div>
 
@@ -172,6 +215,84 @@ const Login = () => {
               </button>
             </div>
           </form>
+
+          {/* Quick Login Section */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <p className="text-center text-sm font-semibold text-gray-700 mb-4">
+              Quick Login (Demo)
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('admin')}
+                disabled={loading}
+                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg text-primary-900 bg-primary-50 hover:bg-primary-100 border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('accounts_manager')}
+                disabled={loading}
+                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg text-primary-900 bg-primary-50 hover:bg-primary-100 border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Accountant
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('franchise')}
+                disabled={loading}
+                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg text-primary-900 bg-primary-50 hover:bg-primary-100 border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Franchise
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('agent')}
+                disabled={loading}
+                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg text-primary-900 bg-primary-50 hover:bg-primary-100 border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5 9 6.343 9 8s1.343 3 3 3zm0 2c-2.21 0-4 1.343-4 3v1h8v-1c0-1.657-1.79-3-4-3z" />
+                </svg>
+                Agent
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('regional_manager')}
+                disabled={loading}
+                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg text-primary-900 bg-primary-50 hover:bg-primary-100 border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Regional Manager
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('relationship_manager')}
+                disabled={loading}
+                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg text-primary-900 bg-primary-50 hover:bg-primary-100 border border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Relationship Manager
+              </button>
+            </div>
+            <p className="text-xs text-center text-gray-500 mt-3">
+              Each role uses its own demo email & password.
+            </p>
+          </div>
         </div>
       </div>
     </div>
